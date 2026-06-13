@@ -5,6 +5,7 @@ import { S00TheFlash } from "./S00TheFlash";
 import { S01PhotographAppears } from "./S01PhotographAppears";
 import { S02TheQuestion } from "./S02TheQuestion";
 import { S03TimeDescent } from "./S03TimeDescent";
+import { S04America1950s } from "./S04America1950s";
 
 function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
@@ -56,6 +57,7 @@ export function ActOnePrototype() {
         </div>
       </section>
       <S03TimeDescent />
+      <S04America1950s />
     </div>
   );
 }

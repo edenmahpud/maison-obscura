@@ -1,42 +1,56 @@
+"use client";
+
 import Image from "next/image";
+import { useEffect, useRef } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-type S04America1950sProps = {
-  progress: number;
-};
+gsap.registerPlugin(ScrollTrigger);
 
-function clamp01(value: number) {
-  return Math.min(1, Math.max(0, value));
-}
+export function S04America1950s() {
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const imgWrapRef = useRef<HTMLDivElement | null>(null);
 
-export function S04America1950s({ progress }: S04America1950sProps) {
-  // Stage the arrival as: white exposure hold -> image slowly appears.
-  const sceneOpacity = clamp01(progress / 0.32);
-  const imageReveal = clamp01((progress - 0.18) / 0.82);
-  const whiteOverlayOpacity = 1 - clamp01((progress - 0.28) / 0.72);
+  useEffect(() => {
+    const section = sectionRef.current;
+    const imgWrap = imgWrapRef.current;
+    if (!section || !imgWrap) return;
+
+    const ctx = gsap.context(() => {
+      ScrollTrigger.create({
+        trigger: section,
+        start: "top top",
+        end: "+=2000",
+        pin: true,
+        scrub: true,
+        onUpdate: (self) => {
+          imgWrap.style.filter = `blur(${20 * (1 - self.progress)}px)`;
+        },
+      });
+    }, section);
+
+    return () => ctx.revert();
+  }, []);
 
   return (
     <section
-      aria-label="S04 America in the 1950s"
-      className="absolute inset-0"
-      style={{ opacity: sceneOpacity }}
+      ref={sectionRef}
+      aria-label="S04 The Perfect America"
+      className="relative h-screen w-full overflow-hidden bg-black"
     >
-      <Image
-        src="/assets/S04-1950s-america/ideal-america-1950s.jpg"
-        alt="Idealized 1950s American atmosphere"
-        fill
-        priority
-        sizes="100vw"
-        className="object-cover"
-        style={{
-          opacity: imageReveal,
-          filter: `brightness(${0.9 + imageReveal * 0.24}) contrast(${0.94 + imageReveal * 0.16})`,
-          transform: `scale(${1.03 - imageReveal * 0.03})`,
-        }}
-      />
       <div
-        className="pointer-events-none absolute inset-0 bg-white"
-        style={{ opacity: whiteOverlayOpacity }}
-      />
+        ref={imgWrapRef}
+        className="absolute inset-0"
+        style={{ filter: "blur(20px)" }}
+      >
+        <Image
+          src="/assets/S04-1950s-america/the_perfect.png"
+          alt="The perfect America"
+          fill
+          sizes="100vw"
+          className="object-cover"
+        />
+      </div>
     </section>
   );
 }

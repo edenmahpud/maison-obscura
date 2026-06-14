@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { SectionOverlayTitle } from "@/components/effects/SectionOverlayTitle";
 
 // BLUR INTENSITY: maximum blur in pixels at the start of the section.
 // Increase for a heavier initial blur, decrease for a softer one.
@@ -78,6 +79,12 @@ export function S04America1950s() {
           sizes="100vw"
           className="object-cover"
         />
+        {/*
+          Title lives inside imgWrapRef so it blurs and sharpens with the
+          photograph — feels burned into the image rather than placed over it.
+          TO CHANGE TEXT: edit the string below.
+        */}
+        <SectionOverlayTitle>The Perfect Decade</SectionOverlayTitle>
       </div>
 
       {/* Entry overlay: continues the white from the tunnel exit, then dissolves */}

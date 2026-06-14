@@ -10,6 +10,10 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Maison Obscura typography system */
+  --font-cormorant: var(--font-cormorant-garamond);   /* font-cormorant — archival serif titles */
+  --font-josefin: var(--font-josefin-sans);            /* font-josefin  — labels, body, UI */
+  --font-script: var(--font-great-vibes);              /* font-script   — large connected section titles */
 }
 
 body {

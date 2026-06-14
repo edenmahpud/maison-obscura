@@ -2,13 +2,12 @@ import { ReactNode, CSSProperties } from "react";
 
 type SectionOverlayTitleProps = {
   children: ReactNode;
-  // BLEND MODE: "normal" = glass floating above image (default).
-  // Try "screen" for a more luminous look, "soft-light" for blending into image.
+  // BLEND MODE: "normal" keeps the text fully visible (default).
+  // "screen" makes it more luminous on dark images.
   blendMode?: CSSProperties["mixBlendMode"];
-  // OPACITY: overall element opacity. 0.82–0.95 for glass presence.
+  // OPACITY: overall element opacity. 0.9–0.98 for a full, glossy feel.
   opacity?: number;
-  // VERTICAL POSITION: percentage from the top of the section.
-  // "50%" = centered, "58%" = lower-center (more cinematic).
+  // VERTICAL POSITION: percentage down from the top of the section.
   verticalPosition?: string;
   className?: string;
 };
@@ -16,25 +15,24 @@ type SectionOverlayTitleProps = {
 /**
  * SectionOverlayTitle
  *
- * A large connected-script title printed as glass/pearl shimmer directly
- * over a section's image. Reuse on every new topic section — just swap the text.
+ * A large glossy connected-script title placed above a section image.
+ * Renders as creamy-white with a pearl shimmer — solid fill, not an outline.
  *
  * Usage:
  *   <SectionOverlayTitle>The Perfect Decade</SectionOverlayTitle>
- *   <SectionOverlayTitle opacity={0.9} verticalPosition="58%">Next Section</SectionOverlayTitle>
+ *   <SectionOverlayTitle verticalPosition="58%">Next Section</SectionOverlayTitle>
  *
- * Must be placed as a sibling of the image layer (NOT inside a div with filter: blur),
- * and inside the section with position: relative / overflow: hidden.
+ * Must be a sibling of the image layer (not inside a filter: blur div).
+ * The parent section needs position: relative / overflow: hidden.
  */
 export function SectionOverlayTitle({
   children,
   blendMode = "normal",
-  opacity = 0.88,
+  opacity = 0.95,
   verticalPosition = "52%",
   className = "",
 }: SectionOverlayTitleProps) {
   return (
-    // Positioning wrapper — handles absolute placement and z-index
     <div
       aria-hidden="true"
       className={`pointer-events-none ${className}`}
@@ -43,52 +41,68 @@ export function SectionOverlayTitle({
         left: "50%",
         top: verticalPosition,
         transform: "translate(-50%, -50%)",
-        // Z-INDEX: must sit above the image layer (z-0) and below
-        // any transition overlays (z-30). Change here to reorder.
+        // Z-INDEX: above image (z-0), below entry transition overlay (z-30).
+        // Increase here if other elements overlap unexpectedly.
         zIndex: 20,
         width: "100%",
         textAlign: "center",
       }}
     >
-      <h2
-        className="font-script"
+      {/*
+        DARK BACKING: a barely-visible radial gradient that sits behind the
+        text and prevents it from washing out on very bright areas of the image.
+        Increase the rgba alpha (currently 0.22) for more contrast.
+        Set to "none" on the background property to remove entirely.
+      */}
+      <div
         style={{
+          position: "absolute",
+          inset: "-30% -8%",
+          pointerEvents: "none",
+          background:
+            "radial-gradient(ellipse 75% 55% at 50% 50%, rgba(10, 5, 0, 0.22) 0%, transparent 72%)",
+        }}
+      />
+
+      <h2
+        className={`font-script`}
+        style={{
+          position: "relative",
+
           // FONT SIZE: clamp(mobile-min, viewport-scale, desktop-max).
-          // Increase the middle value (11vw) to make the title wider-spanning.
-          fontSize: "clamp(3.8rem, 11vw, 14rem)",
+          // Increase the middle value (12vw) to make the title span wider.
+          fontSize: "clamp(4.2rem, 12vw, 16rem)",
           lineHeight: 0.88,
-          letterSpacing: "0.01em",
+          // Script fonts should not have letter-spacing — keep at normal.
+          letterSpacing: "normal",
+          fontWeight: 400,
+          display: "block",
           maxWidth: "92vw",
           margin: "0 auto",
-          display: "block",
 
-          // GLASS / PEARL FILL
-          // Gradient: bright white at top → warm pale gold at center → soft white at base.
-          // To make it more gold: increase the rgba(255,242,195,...) stop.
-          // To make it more pure white: reduce that stop or lower its opacity.
-          background:
-            "linear-gradient(168deg, rgba(255,255,255,1) 0%, rgba(255,244,200,0.9) 38%, rgba(255,255,255,0.96) 68%, rgba(228,212,176,0.88) 100%)",
-          WebkitBackgroundClip: "text",
-          backgroundClip: "text",
-          WebkitTextFillColor: "transparent",
+          // FILL: solid creamy white — the main visible body of the text.
+          // This is what was missing before (gradient clip removed the fill).
+          // Adjust the last number (0.92) for more/less density.
+          color: "rgba(255, 252, 240, 0.92)",
 
-          // STROKE: thin outline that reads as glass edge / engraving.
-          // Reduce to "0px" to remove entirely.
-          WebkitTextStroke: "0.5px rgba(255, 255, 255, 0.48)",
-
-          opacity,
           mixBlendMode: blendMode,
+          opacity,
 
-          // GLOW / DROP SHADOW
-          // Layer 1 (0 0 12px): tight white halo around letters — glass shine
-          // Layer 2 (0 0 36px): wider warm gold bloom — pearl luminosity
-          // Layer 3 (0 8px 28px): dark drop — anchors text to image, adds depth
-          // To strengthen the glow: increase the rgba alpha values.
-          // To reduce it: lower them or remove a layer.
-          filter:
-            "drop-shadow(0 0 12px rgba(255,255,255,0.55)) " +
-            "drop-shadow(0 0 36px rgba(255,230,140,0.24)) " +
-            "drop-shadow(0 8px 28px rgba(0,0,0,0.28))",
+          // STROKE: hair-thin engraving line that reads as a glass edge.
+          // Use 0px to remove. Keep under 0.3px so it stays subtle.
+          WebkitTextStroke: "0.2px rgba(255, 255, 255, 0.38)",
+
+          // TEXT SHADOW — three layers:
+          // 1. Warm dark drop: anchors the text, separates from image highlights.
+          //    Increase rgba alpha (0.38) for stronger shadow / more separation.
+          // 2. White inner halo: the close glass-shine on the letters.
+          //    Increase for a brighter glow.
+          // 3. Gold bloom: the wider pearl warmth. Adjust the gold tone in rgba.
+          textShadow: [
+            "0 2px 10px rgba(30, 15, 5, 0.38)",
+            "0 0 12px rgba(255, 255, 255, 0.3)",
+            "0 0 40px rgba(255, 232, 160, 0.2)",
+          ].join(", "),
         }}
       >
         {children}

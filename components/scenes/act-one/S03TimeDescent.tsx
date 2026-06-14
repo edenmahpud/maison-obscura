@@ -2,40 +2,43 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-type S03TimeDescentProps = {
-  onProgressChange?: (progress: number) => void;
-};
+// SCROLL DISTANCE: controls how long the tunnel experience lasts.
+// 4 = 400vh. Increase for a slower reveal, decrease for a faster one.
+const TUNNEL_SCROLL_MULTIPLIER = 4;
 
-function clamp01(value: number) {
-  return Math.min(1, Math.max(0, value));
+// ENTRY TRANSITION: fraction of scroll over which the entry overlay fades out.
+// 0.12 = first 12% of scroll. Increase for a slower entry dissolve.
+const ENTRY_FADE_END = 0.12;
+
+// EXIT TRANSITION: fraction of scroll at which the white exit overlay starts fading in.
+// 0.85 = starts at 85% through the tunnel. Decrease to start the fade earlier.
+const EXIT_FADE_START = 0.85;
+
+function clamp01(v: number) {
+  return Math.min(1, Math.max(0, v));
 }
 
-export function S03TimeDescent({
-  onProgressChange,
-}: S03TimeDescentProps) {
+export function S03TimeDescent() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rafRef = useRef<number | null>(null);
-  const triggerRef = useRef<ScrollTrigger | null>(null);
   const targetTimeRef = useRef(0);
   const durationRef = useRef(0);
+  const entryOverlayRef = useRef<HTMLDivElement | null>(null);
+  const exitOverlayRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const section = sectionRef.current;
     const video = videoRef.current;
-    if (!section || !video) {
-      return;
-    }
+    if (!section || !video) return;
 
     gsap.registerPlugin(ScrollTrigger);
 
     const onLoadedMetadata = () => {
-      durationRef.current = Number.isFinite(video.duration) ? video.duration : 0;
+      durationRef.current = Number.isFinite(video.duration) ? video.duration : 8;
       video.pause();
-      if (durationRef.current > 0.01) {
-        video.currentTime = 0.01;
-      }
-      targetTimeRef.current = video.currentTime;
+      video.currentTime = 0;
+      targetTimeRef.current = 0;
     };
 
     if (video.readyState >= 1) {
@@ -45,33 +48,49 @@ export function S03TimeDescent({
       video.load();
     }
 
+    // RAF loop: directly seeks the video to the scroll-driven target time.
+    // No easing — scroll position maps 1:1 to video time.
     const tick = () => {
-      const duration = durationRef.current;
-      if (duration > 0) {
-        const target = clamp01(targetTimeRef.current / duration) * duration;
-        const diff = target - video.currentTime;
-        if (Math.abs(diff) > 0.001) {
-          video.currentTime += diff * 0.085;
-        }
+      const target = targetTimeRef.current;
+      if (durationRef.current > 0 && Math.abs(video.currentTime - target) > 0.002) {
+        video.currentTime = target;
       }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
 
-    triggerRef.current = ScrollTrigger.create({
-      trigger: section,
-      start: "top top",
-      end: "+=8000",
-      pin: true,
-      scrub: true,
-      invalidateOnRefresh: true,
-      onUpdate: (self) => {
-        const duration = durationRef.current;
-        const progress = self.progress;
-        targetTimeRef.current = progress * duration;
-        onProgressChange?.(progress);
-      },
-    });
+    const scrollDistance = window.innerHeight * TUNNEL_SCROLL_MULTIPLIER;
+
+    const ctx = gsap.context(() => {
+      ScrollTrigger.create({
+        trigger: section,
+        start: "top top",
+        end: `+=${scrollDistance}`,
+        pin: true,
+        scrub: true,
+        invalidateOnRefresh: true,
+        onUpdate: (self) => {
+          const p = self.progress;
+
+          // Drive video time directly from scroll progress
+          targetTimeRef.current = clamp01(p) * durationRef.current;
+
+          // Entry: dark overlay dissolves away over the first ENTRY_FADE_END of scroll
+          if (entryOverlayRef.current) {
+            entryOverlayRef.current.style.opacity = String(
+              1 - clamp01(p / ENTRY_FADE_END)
+            );
+          }
+
+          // Exit: white overlay fades in from EXIT_FADE_START to 1.0
+          if (exitOverlayRef.current) {
+            exitOverlayRef.current.style.opacity = String(
+              clamp01((p - EXIT_FADE_START) / (1 - EXIT_FADE_START))
+            );
+          }
+        },
+      });
+    }, section);
 
     ScrollTrigger.refresh();
 
@@ -80,17 +99,13 @@ export function S03TimeDescent({
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      if (triggerRef.current) {
-        triggerRef.current.kill();
-        triggerRef.current = null;
-      }
+      ctx.revert();
       video.removeEventListener("loadedmetadata", onLoadedMetadata);
       video.pause();
-      video.currentTime = 0;
       durationRef.current = 0;
       targetTimeRef.current = 0;
     };
-  }, [onProgressChange]);
+  }, []);
 
   return (
     <section
@@ -100,11 +115,25 @@ export function S03TimeDescent({
     >
       <video
         ref={videoRef}
-        src="/assets/S03-time-descent/time-descent-tunnel-v01.mp4"
+        src="/assets/tunnel.mp4"
         muted
         playsInline
         preload="auto"
         className="absolute inset-0 h-full w-full object-cover"
+      />
+
+      {/* Entry overlay: softens the cut from the text screen into the tunnel */}
+      <div
+        ref={entryOverlayRef}
+        className="pointer-events-none absolute inset-0 bg-black"
+        style={{ opacity: 1 }}
+      />
+
+      {/* Exit overlay: white flash that bridges to the 1950s image section */}
+      <div
+        ref={exitOverlayRef}
+        className="pointer-events-none absolute inset-0 bg-white"
+        style={{ opacity: 0 }}
       />
     </section>
   );

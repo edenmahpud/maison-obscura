@@ -67,10 +67,11 @@ export function S04America1950s() {
       aria-label="S04 The Perfect America"
       className="relative h-screen w-full overflow-hidden bg-black"
     >
+      {/* z-0: blurred image layer — blur animated by scroll */}
       <div
         ref={imgWrapRef}
         className="absolute inset-0"
-        style={{ filter: `blur(${MAX_BLUR_PX}px)` }}
+        style={{ zIndex: 0, filter: `blur(${MAX_BLUR_PX}px)` }}
       >
         <Image
           src="/assets/S04-1950s-america/the_perfect.png"
@@ -79,19 +80,20 @@ export function S04America1950s() {
           sizes="100vw"
           className="object-cover"
         />
-        {/*
-          Title lives inside imgWrapRef so it blurs and sharpens with the
-          photograph — feels burned into the image rather than placed over it.
-          TO CHANGE TEXT: edit the string below.
-        */}
-        <SectionOverlayTitle>The Perfect Decade</SectionOverlayTitle>
       </div>
 
-      {/* Entry overlay: continues the white from the tunnel exit, then dissolves */}
+      {/*
+        z-20: glass title — sits above image, outside the blur stacking context.
+        TO CHANGE TEXT: edit the string below.
+        TO REPOSITION: pass verticalPosition="55%" (or any %) to SectionOverlayTitle.
+      */}
+      <SectionOverlayTitle>The Perfect Decade</SectionOverlayTitle>
+
+      {/* z-30: white entry overlay from tunnel exit — must cover title during transition */}
       <div
         ref={entryOverlayRef}
         className="pointer-events-none absolute inset-0 bg-white"
-        style={{ opacity: 1 }}
+        style={{ zIndex: 30, opacity: 1 }}
       />
     </section>
   );

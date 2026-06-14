@@ -7,12 +7,12 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 const TUNNEL_SCROLL_MULTIPLIER = 4;
 
 // ENTRY TRANSITION: fraction of scroll over which the entry overlay fades out.
-// 0.12 = first 12% of scroll. Increase for a slower entry dissolve.
-const ENTRY_FADE_END = 0.12;
+// 0.04 = first 4% of scroll (~16vh). Increase for a slower entry dissolve.
+const ENTRY_FADE_END = 0.04;
 
 // EXIT TRANSITION: fraction of scroll at which the white exit overlay starts fading in.
-// 0.85 = starts at 85% through the tunnel. Decrease to start the fade earlier.
-const EXIT_FADE_START = 0.85;
+// 0.94 = starts at 94% through the tunnel (last ~24vh). Decrease to start the fade earlier.
+const EXIT_FADE_START = 0.94;
 
 function clamp01(v: number) {
   return Math.min(1, Math.max(0, v));

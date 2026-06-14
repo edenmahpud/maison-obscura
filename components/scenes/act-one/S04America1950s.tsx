@@ -10,8 +10,8 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 const MAX_BLUR_PX = 20;
 
 // ENTRY TRANSITION: fraction of scroll over which the white entry overlay fades out.
-// 0.2 = first 20% of scroll. Increase for a slower dissolve from the tunnel white.
-const ENTRY_FADE_END = 0.2;
+// 0.07 = first 7% of scroll (~140px). Increase for a slower dissolve from the tunnel white.
+const ENTRY_FADE_END = 0.07;
 
 // SCROLL DISTANCE: how many pixels of scroll the de-blur experience lasts.
 // Increase for a slower reveal, decrease for a faster one.

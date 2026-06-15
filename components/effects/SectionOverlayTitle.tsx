@@ -65,7 +65,7 @@ export function SectionOverlayTitle({
       />
 
       <h2
-        className={`font-script`}
+        className={`font-cormorant italic`}
         style={{
           position: "relative",
 

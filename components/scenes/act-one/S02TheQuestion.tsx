@@ -49,7 +49,7 @@ export function S02TheQuestion({ progress }: S02TheQuestionProps) {
       />
 
       <p
-        className="font-cormorant italic relative z-10 max-w-3xl text-center text-3xl leading-[1.4] tracking-[0.01em] text-zinc-100/92 sm:text-4xl md:text-5xl"
+        className="font-cormorant italic relative z-10 max-w-3xl text-center text-[clamp(3.5rem,8vw,8rem)] leading-[1.2] tracking-[0.01em] text-zinc-100/92"
         style={{ filter: `blur(${fadeOut * 6}px)` }}
       >
         What happened here?

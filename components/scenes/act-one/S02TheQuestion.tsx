@@ -1,13 +1,6 @@
-import { Libre_Baskerville } from "next/font/google";
-
 type S02TheQuestionProps = {
   progress: number;
 };
-
-const libreBaskerville = Libre_Baskerville({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-});
 
 function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
@@ -56,7 +49,7 @@ export function S02TheQuestion({ progress }: S02TheQuestionProps) {
       />
 
       <p
-        className={`${libreBaskerville.className} relative z-10 max-w-3xl text-center text-3xl leading-[1.4] tracking-[0.01em] text-zinc-100/92 sm:text-4xl md:text-5xl`}
+        className="font-cormorant italic relative z-10 max-w-3xl text-center text-3xl leading-[1.4] tracking-[0.01em] text-zinc-100/92 sm:text-4xl md:text-5xl"
         style={{ filter: `blur(${fadeOut * 6}px)` }}
       >
         What happened here?

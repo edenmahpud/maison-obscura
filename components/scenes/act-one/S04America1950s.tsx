@@ -65,7 +65,7 @@ export function S04America1950s() {
     <section
       ref={sectionRef}
       aria-label="S04 The Perfect America"
-      className="relative h-screen w-full overflow-hidden bg-black"
+      className="relative h-screen w-full overflow-hidden bg-black font-cormorant"
     >
       {/* z-0: blurred image layer — blur animated by scroll */}
       <div

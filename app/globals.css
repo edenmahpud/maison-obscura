@@ -14,6 +14,7 @@
   --font-cormorant: var(--font-cormorant-garamond);   /* font-cormorant — archival serif titles */
   --font-josefin: var(--font-josefin-sans);            /* font-josefin  — labels, body, UI */
   --font-script: var(--font-great-vibes);              /* font-script   — large connected section titles */
+  --font-courier: var(--font-courier-prime);           /* font-courier  — typewriter body text in collage cards */
 }
 
 body {
@@ -143,4 +144,15 @@ body {
   .mo-flash {
     animation: none;
   }
+}
+
+/* ── Courier Prime direct class ───────────────────────────────────────────────
+   Used by the notebook/paper card body text in S04America1950s.
+   Uses the CSS variable set by next/font (courierPrime.variable on <html>).
+   Fallback chain ensures Courier Prime from the browser or system is used
+   if the variable isn't resolved.
+   To change the font: update the var() reference or replace the fallback stack.
+   ─────────────────────────────────────────────────────────────────────────── */
+.happy-paper-body {
+  font-family: var(--font-courier-prime, "Courier Prime", "Courier New", Courier, monospace);
 }

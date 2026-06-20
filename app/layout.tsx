@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Cormorant_Garamond, Josefin_Sans, Great_Vibes } from "next/font/google";
+import { Geist, Geist_Mono, Cormorant_Garamond, Josefin_Sans, Great_Vibes, Courier_Prime } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -36,6 +36,13 @@ const scriptFont = Great_Vibes({
   weight: "400",
 });
 
+// Typewriter serif for body/running text in archival collage cards.
+const courierPrime = Courier_Prime({
+  variable: "--font-courier-prime",
+  subsets: ["latin"],
+  weight: ["400", "700"],
+});
+
 export const metadata: Metadata = {
   title: "Maison Obscura",
   description:
@@ -50,7 +57,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} ${josefin.variable} ${scriptFont.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} ${josefin.variable} ${scriptFont.variable} ${courierPrime.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-black text-neutral-100">
         {children}

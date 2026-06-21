@@ -321,7 +321,7 @@ export function S04America1950s() {
         >
           <div ref={cardRef} style={{ position: "relative", willChange: "transform" }}>
             <Image
-              src="/assets/happy/happy13.png"
+              src="/assets/happy/happy13new.png"
               alt="" aria-hidden="true"
               width={700} height={495}
               style={{ width: "700px", height: "auto", display: "block" }}  /* ← must match outer div width */
@@ -442,7 +442,7 @@ export function S04America1950s() {
         }}
       >
         <Image
-          src="/assets/S04-1950s-america/the_perfect.png"
+          src="/assets/S04-1950s-america/the_perfect1.png"
           alt="The perfect America"
           fill sizes="100vw"
           className="object-cover"

@@ -205,7 +205,7 @@ export function S05HappyDecade() {
             style={{ position: "relative", width: "100%", height: "100%", willChange: "transform" }}
           >
             <Image
-              src="/assets/S04-1950s-america/the_perfect.png"
+              src="/assets/S04-1950s-america/the_perfect1.png"
               alt=""
               aria-hidden="true"
               fill

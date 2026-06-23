@@ -36,6 +36,21 @@ body {
   animation: mo-grain-shift 0.6s steps(4) infinite;
 }
 
+/* ── Shared dark archival grain ──────────────────────────────────────────────
+   One consistent film-noise overlay used across all dark cinematic sections.
+   200 px feTurbulence tile, screen blend — matches FlashIntro exactly.
+   Self-contained: adds position + inset. Caller sets z-index via inline style.
+   ─────────────────────────────────────────────────────────────────────────── */
+.mo-archival-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.20;
+  mix-blend-mode: screen;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
 .mo-vignette::before {
   content: "";
   position: absolute;

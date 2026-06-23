@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { S00TheFlash } from "./S00TheFlash";
-import { S01PhotographAppears } from "./S01PhotographAppears";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { FlashIntro } from "./FlashIntro";
 import { S02TheQuestion } from "./S02TheQuestion";
-import { S03TimeDescent } from "./S03TimeDescent";
 import { S04America1950s } from "./S04America1950s";
 import { S05Transition } from "./S05Transition";
 import { S06SadSection } from "./S06SadSection";
@@ -28,6 +28,43 @@ const SOUND_FADE_MS = 900;
 const DEBUG_SOUND = true;
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── SECTION SIZING ────────────────────────────────────────────────────────────
+// Total: 300vh question/transition + 400vh scroll-scrubbed tunnel = 700vh.
+// QUESTION_PHASE is that 300vh fraction of 700vh total.
+const QUESTION_PHASE = 300 / 700; // ≈ 0.4286
+
+// ── TUNNEL TRANSITION CONTROLS ────────────────────────────────────────────────
+// All values are fractions of total section scroll (0–1 over 700vh).
+// Derived by multiplying old 300vh-relative values × QUESTION_PHASE.
+const TUNNEL_OVERLAY_IN_START  = 0.309; // 0.72 × QUESTION_PHASE
+const TUNNEL_OVERLAY_IN_END    = 0.356; // 0.83 × QUESTION_PHASE
+const TUNNEL_OVERLAY_OUT_START = 0.356; // 0.83 × QUESTION_PHASE
+const TUNNEL_OVERLAY_OUT_END   = 0.403; // 0.94 × QUESTION_PHASE
+const TUNNEL_IN_START  = 0.343;         // 0.80 × QUESTION_PHASE
+const TUNNEL_IN_END    = 0.403;         // 0.94 × QUESTION_PHASE — fully revealed
+const TUNNEL_BLUR_MAX  = 28;
+const TUNNEL_SCALE_MAX = 1.04;
+
+// ── TUNNEL SCROLL-SCRUB CONTROLS ──────────────────────────────────────────────
+// After TUNNEL_IN_END the tunnel is clear; remaining scroll scrubs the video.
+const TUNNEL_SCROLL_START = TUNNEL_IN_END; // 0.403
+
+// ── YEAR OVERLAY CONTROLS ─────────────────────────────────────────────────────
+// Global fractions (0–1 over 700vh). Converted from original tunnel-relative
+// fractions: global = tunnelFrac × (1 − TUNNEL_SCROLL_START) + TUNNEL_SCROLL_START
+const YEAR_2026_FADE_IN_START = TUNNEL_SCROLL_START; // 0.403
+const YEAR_2026_FADE_IN_END   = 0.421;
+const YEAR_2026_HOLD_END      = 0.451;
+const YEAR_2026_GONE_BY       = 0.534;
+const YEAR_1953_APPEAR        = 0.851;
+const YEAR_1953_FULL          = 0.940;
+
+// ── EXIT OVERLAY ──────────────────────────────────────────────────────────────
+// Rises near the end of the tunnel scroll. Color matches S04's entry overlay so
+// the section boundary is invisible (warm cream → warm cream → image reveals).
+const EXIT_FADE_START = 0.90;
+// ─────────────────────────────────────────────────────────────────────────────
+
 function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
 }
@@ -39,6 +76,17 @@ function log(...args: unknown[]) {
 export function ActOnePrototype() {
   const introRef = useRef<HTMLElement | null>(null);
   const [introProgress, setIntroProgress] = useState(0);
+
+  // ── Tunnel transition refs ────────────────────────────────────────────────
+  const tunnelLayerRef       = useRef<HTMLDivElement | null>(null);
+  const tunnelVideoWrapRef   = useRef<HTMLDivElement | null>(null);
+  const tunnelVideoRef       = useRef<HTMLVideoElement | null>(null);
+  const transitionOverlayRef = useRef<HTMLDivElement | null>(null);
+
+  // ── Year / exit overlay refs ──────────────────────────────────────────────
+  const year2026Ref   = useRef<HTMLDivElement | null>(null);
+  const year1953Ref   = useRef<HTMLDivElement | null>(null);
+  const exitOverlayRef = useRef<HTMLDivElement | null>(null);
 
   // ── Audio refs ────────────────────────────────────────────────────────────
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -163,6 +211,80 @@ export function ActOnePrototype() {
     }
   }, [introProgress]);
 
+  // ── Tunnel GSAP ScrollTrigger ─────────────────────────────────────────────
+  // Drives: tunnel reveal blur/scale, video.currentTime, years, exit overlay.
+  // Trigger is the full 700vh introRef section; progress 0–1 covers it all.
+  // CSS sticky keeps the viewport pinned — no GSAP pin needed.
+  useEffect(() => {
+    const intro = introRef.current;
+    const video = tunnelVideoRef.current;
+    if (!intro || !video) return;
+
+    gsap.registerPlugin(ScrollTrigger);
+
+    let dur = 0;
+    const onMeta = () => { dur = video.duration; };
+    video.addEventListener("loadedmetadata", onMeta);
+    if (video.readyState >= 1) dur = video.duration;
+
+    const ctx = gsap.context(() => {
+      ScrollTrigger.create({
+        trigger: intro,
+        start: "top top",
+        end: "bottom bottom",
+        invalidateOnRefresh: true,
+        onUpdate: (self) => {
+          const p = self.progress;
+
+          // ── Tunnel reveal (transition from question) ────────────────────
+          const overlayIn  = clamp01((p - TUNNEL_OVERLAY_IN_START)  / (TUNNEL_OVERLAY_IN_END  - TUNNEL_OVERLAY_IN_START));
+          const overlayOut = clamp01((p - TUNNEL_OVERLAY_OUT_START) / (TUNNEL_OVERLAY_OUT_END - TUNNEL_OVERLAY_OUT_START));
+          if (transitionOverlayRef.current)
+            transitionOverlayRef.current.style.opacity = String(overlayIn * (1 - overlayOut));
+          const tunnelP     = clamp01((p - TUNNEL_IN_START) / (TUNNEL_IN_END - TUNNEL_IN_START));
+          const tunnelBlur  = TUNNEL_BLUR_MAX  * (1 - tunnelP);
+          const tunnelScale = TUNNEL_SCALE_MAX - tunnelP * (TUNNEL_SCALE_MAX - 1);
+          if (tunnelLayerRef.current)
+            tunnelLayerRef.current.style.opacity = String(tunnelP);
+          if (tunnelVideoWrapRef.current) {
+            tunnelVideoWrapRef.current.style.transform = `scale(${tunnelScale})`;
+            tunnelVideoWrapRef.current.style.filter    = tunnelBlur > 0.3 ? `blur(${tunnelBlur}px)` : "";
+          }
+
+          // ── Video scroll-scrub ──────────────────────────────────────────
+          if (dur > 0) {
+            const tf = clamp01((p - TUNNEL_SCROLL_START) / (1 - TUNNEL_SCROLL_START));
+            video.currentTime = Math.min(tf * dur, dur - 0.001);
+          }
+
+          // ── Year labels ─────────────────────────────────────────────────
+          if (year2026Ref.current) {
+            const i = clamp01((p - YEAR_2026_FADE_IN_START) / (YEAR_2026_FADE_IN_END - YEAR_2026_FADE_IN_START));
+            const o = clamp01((p - YEAR_2026_HOLD_END)      / (YEAR_2026_GONE_BY      - YEAR_2026_HOLD_END));
+            year2026Ref.current.style.opacity = String(i * (1 - o));
+          }
+          if (year1953Ref.current) {
+            year1953Ref.current.style.opacity = String(
+              clamp01((p - YEAR_1953_APPEAR) / (YEAR_1953_FULL - YEAR_1953_APPEAR))
+            );
+          }
+
+          // ── Exit overlay ────────────────────────────────────────────────
+          if (exitOverlayRef.current) {
+            exitOverlayRef.current.style.opacity = String(
+              clamp01((p - EXIT_FADE_START) / (1 - EXIT_FADE_START))
+            );
+          }
+        },
+      });
+    }, intro);
+
+    return () => {
+      video.removeEventListener("loadedmetadata", onMeta);
+      ctx.revert();
+    };
+  }, []);
+
   // ── Scroll progress tracking ──────────────────────────────────────────────
   useEffect(() => {
     let frame = 0;
@@ -177,7 +299,8 @@ export function ActOnePrototype() {
       const rect = intro.getBoundingClientRect();
       const maxScroll = Math.max(rect.height - window.innerHeight, 1);
       const scrolled = clamp01(-rect.top / maxScroll);
-      setIntroProgress(scrolled);
+      // S02TheQuestion expects 0–1 over the question phase only
+      setIntroProgress(clamp01(scrolled / QUESTION_PHASE));
     };
 
     const queueUpdate = () => {
@@ -197,15 +320,86 @@ export function ActOnePrototype() {
   }, []);
 
   return (
-    <div className="relative bg-black">
-      <section ref={introRef} className="relative min-h-[320vh] bg-black">
-        <div className="sticky top-0 h-screen overflow-hidden">
-          <S00TheFlash progress={introProgress} />
-          <S01PhotographAppears progress={introProgress} />
+    <div className="relative bg-[#050505]">
+      <FlashIntro />
+      <section ref={introRef} className="relative min-h-[700vh] bg-black">
+        <div className="sticky top-0 h-screen overflow-hidden bg-[#050505]">
           <S02TheQuestion progress={introProgress} />
+          {/* Tunnel layer — z-5, above S02 (z-auto) */}
+          <div
+            ref={tunnelLayerRef}
+            style={{ position: "absolute", inset: 0, zIndex: 5, opacity: 0, overflow: "hidden", pointerEvents: "none" }}
+          >
+            <div
+              ref={tunnelVideoWrapRef}
+              style={{ position: "absolute", inset: 0, transform: `scale(${TUNNEL_SCALE_MAX})`, transformOrigin: "center center" }}
+            >
+              <video
+                ref={tunnelVideoRef}
+                src="/assets/tunnel.mp4"
+                muted
+                playsInline
+                preload="auto"
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            </div>
+
+            {/* Year labels — inside tunnel layer, above video */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none"
+              style={{ position: "absolute", inset: 0, zIndex: 50 }}
+            >
+              <div
+                ref={year2026Ref}
+                className="font-cormorant italic"
+                style={{
+                  position: "absolute", left: "50%", top: "50%",
+                  transform: "translate(-50%, -50%)",
+                  fontSize: "clamp(5rem, 10vw, 11rem)", fontWeight: 300,
+                  lineHeight: 1, textAlign: "center", whiteSpace: "nowrap",
+                  color: "rgba(255,248,232,0.85)", letterSpacing: "0.15em",
+                  textShadow: "0 0 40px rgba(255,240,200,0.2), 0 2px 12px rgba(0,0,0,0.5)",
+                  filter: "blur(0.4px)", userSelect: "none", opacity: 0,
+                }}
+              >
+                2026
+              </div>
+              <div
+                ref={year1953Ref}
+                className="font-cormorant italic"
+                style={{
+                  position: "absolute", left: "50%", top: "50%",
+                  transform: "translate(-50%, -50%)",
+                  fontSize: "clamp(5rem, 10vw, 11rem)", fontWeight: 300,
+                  lineHeight: 1, textAlign: "center", whiteSpace: "nowrap",
+                  color: "rgba(255,248,232,0.85)", letterSpacing: "0.15em",
+                  textShadow: "0 0 40px rgba(255,240,200,0.2), 0 2px 12px rgba(0,0,0,0.5)",
+                  filter: "blur(0.4px)", userSelect: "none", opacity: 0,
+                }}
+              >
+                1953
+              </div>
+            </div>
+          </div>
+
+          {/* Warm exposure overlay — z-15, peaks between question fade and tunnel reveal */}
+          <div
+            ref={transitionOverlayRef}
+            aria-hidden="true"
+            style={{ position: "absolute", inset: 0, zIndex: 15, background: "#FCF1DA", opacity: 0, pointerEvents: "none" }}
+          />
+
+          {/* Warm exit overlay — z-20, fades in at end of tunnel scroll.      */}
+          {/* Color matches S04's entry overlay for a seamless section handoff. */}
+          <div
+            ref={exitOverlayRef}
+            aria-hidden="true"
+            className="pointer-events-none"
+            style={{ position: "absolute", inset: 0, zIndex: 20, background: "#FCF1DA", opacity: 0 }}
+          />
         </div>
       </section>
-      <S03TimeDescent />
       <S04America1950s />
       <S05Transition />
       <S06SadSection />

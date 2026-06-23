@@ -19,6 +19,12 @@ gsap.registerPlugin(ScrollTrigger);
 
 const TOTAL_SCROLL = 9500;
 
+// ── ENTRY TRANSITION ──────────────────────────────────────────────────────────
+// Warm overlay matching the tunnel's exit overlay (#FCF1DA). Starts at opacity 1
+// and fades out in the first ENTRY_FADE_END fraction of S04 scroll, bridging
+// the section boundary so there is no visible gap or hard cut.
+const ENTRY_FADE_END = 0.03; // fully transparent by 3 % of S04 scroll (~285 px)
+
 // ── ZOOM-OUT PHASE ────────────────────────────────────────────────────────────
 const MAX_BLUR_PX   = 20;
 const MAX_BRIGHT    = 5;      // tunnel-exit brightness spike
@@ -113,9 +119,10 @@ function clamp01(v: number) {
 }
 
 export function S04America1950s() {
-  const sectionRef    = useRef<HTMLElement | null>(null);
-  const imgWrapRef    = useRef<HTMLDivElement | null>(null);
-  const titleRef      = useRef<HTMLDivElement | null>(null);
+  const sectionRef      = useRef<HTMLElement | null>(null);
+  const entryOverlayRef = useRef<HTMLDivElement | null>(null);
+  const imgWrapRef      = useRef<HTMLDivElement | null>(null);
+  const titleRef        = useRef<HTMLDivElement | null>(null);
   const trackRef      = useRef<HTMLDivElement | null>(null);
   const cardRef       = useRef<HTMLDivElement | null>(null);
   const tvRef         = useRef<HTMLDivElement | null>(null);
@@ -172,6 +179,11 @@ export function S04America1950s() {
         onUpdate: (self) => {
           const p    = self.progress;
           const vwPx = window.innerWidth / 100;
+
+          // ── Entry overlay — fades from opaque warm cream to transparent ────
+          if (entryOverlayRef.current) {
+            entryOverlayRef.current.style.opacity = String(1 - clamp01(p / ENTRY_FADE_END));
+          }
 
           // ── Blur + brightness — tunnel-exit light dissolves ────────────────
           const deblurP = clamp01(p / DEBLUR_END);
@@ -242,7 +254,7 @@ export function S04America1950s() {
       ref={sectionRef}
       aria-label="S04–S05 The Perfect Decade"
       className="relative h-screen w-full overflow-hidden"
-      style={{ background: "#181818" }}
+      style={{ background: "#050505" }}
     >
       {/* ── Horizontal collage track (2800 px canvas) ─────────────────────── */}
       {/* Invisible during zoom-out; appears as big image crossfades away.    */}
@@ -481,6 +493,14 @@ export function S04America1950s() {
           background:
             "radial-gradient(ellipse 90% 80% at 50% 50%, transparent 40%, rgba(0,0,0,0.55) 100%)",
         }}
+      />
+
+      {/* ── Entry overlay — z:300, matches tunnel exit color for seamless handoff */}
+      <div
+        ref={entryOverlayRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{ zIndex: 300, background: "#FCF1DA", opacity: 1 }}
       />
     </section>
   );

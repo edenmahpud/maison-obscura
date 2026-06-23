@@ -69,7 +69,7 @@ export function S05Transition() {
     <section
       ref={sectionRef}
       aria-label="S05 Transition"
-      className="relative h-screen w-full overflow-hidden bg-black"
+      className="relative h-screen w-full overflow-hidden bg-[#050505]"
     >
       {/*
        * VIDEO DISPLAY CONTROLS

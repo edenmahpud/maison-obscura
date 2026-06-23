@@ -29,7 +29,6 @@ export function S00TheFlash({ progress }: S00TheFlashProps) {
           backgroundSize: "140px 140px",
         }}
       />
-
       <div className="pointer-events-none absolute inset-x-0 bottom-9 flex flex-col items-center gap-2 text-[0.58rem] tracking-[0.35em] text-zinc-700/72 uppercase">
         <span>SCROLL</span>
         <span aria-hidden="true" className="h-8 w-px bg-zinc-700/45" />

@@ -24,6 +24,14 @@ gsap.registerPlugin(ScrollTrigger);
 const TOTAL_SCROLL = 6000;
 const CANVAS_WIDTH = "2800px";
 
+// ── VIEWPORT INSET ────────────────────────────────────────────────────────────
+// Breathing room between canvas content and screen edges.
+// Edit INSET_V (top + bottom) or INSET_H (left + right) to adjust.
+// GSAP travel distance is measured from the inset container at runtime,
+// so the horizontal scroll always reaches the right edge regardless of value.
+const INSET_V = "clamp(48px, 7vh, 110px)";   /* ← top + bottom padding */
+const INSET_H = "clamp(32px, 5vw,  80px)";   /* ← left + right padding */
+
 // Global parallax depth multiplier.
 const PARALLAX_SCALE = 0.45;
 
@@ -125,6 +133,9 @@ export function S06SadSection() {
   const vidRef      = useRef<HTMLVideoElement | null>(null);
   const vidUnlocked = useRef(false);
 
+  // Inset viewport container — GSAP reads its clientWidth to compute travel distance
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+
   // Parallax refs for the opening spread
   // sad1Inner — parallax on the photo page inner wrapper
   // cardInner — parallax on the sad2 text card inner wrapper
@@ -181,7 +192,9 @@ export function S06SadSection() {
 
           // ── Horizontal scroll ─────────────────────────────────────────────
           const hP       = clamp01((p - ENTRY_CLEAR) / (1 - ENTRY_CLEAR));
-          const travelPx = track.scrollWidth - window.innerWidth;
+          // Use inset viewport's measured width so GSAP travel accounts for padding
+          const viewW    = viewportRef.current?.clientWidth ?? window.innerWidth;
+          const travelPx = track.scrollWidth - viewW;
           gsap.set(track, { x: -(hP * travelPx) });
 
           // ── Opening spread parallax ───────────────────────────────────────
@@ -221,7 +234,7 @@ export function S06SadSection() {
       ref={sectionRef}
       aria-label="S06 The Hidden Side"
       className="relative h-screen w-full overflow-hidden"
-      style={{ background: "#181818" }}
+      style={{ background: "#050505" }}
     >
       {/* ── Entry blur wrapper ─────────────────────────────────────────────
           opacity is always 1 — section visible from the first frame (no black gap).
@@ -231,6 +244,19 @@ export function S06SadSection() {
         ref={blurWrapRef}
         style={{ position: "absolute", inset: 0, filter: "blur(10px) brightness(1.4)" }}
       >
+        {/* ── Padded viewport — insets canvas from screen edges ─────────────
+            INSET_V (top/bottom) and INSET_H (left/right) are the constants
+            at the top of this file. GSAP reads clientWidth at scroll time
+            so horizontal travel always reaches the right edge correctly.     */}
+        <div
+          ref={viewportRef}
+          style={{
+            position: "absolute",
+            inset: `${INSET_V} ${INSET_H}`,
+            overflow: "hidden",
+          }}
+        >
+
         {/* ── 2800 px horizontal canvas ─────────────────────────────────── */}
         <div
           ref={trackRef}
@@ -421,22 +447,14 @@ export function S06SadSection() {
 
         </div>
         {/* end trackRef */}
+
+        </div>
+        {/* end viewportRef / padded viewport */}
       </div>
       {/* end blurWrapRef */}
 
-      {/* ── Film grain — archival texture ─────────────────────────────────── */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          zIndex: 200,
-          opacity: 0.3,
-          mixBlendMode: "soft-light",
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
-          backgroundSize: "160px 160px",
-        }}
-      />
+      {/* ── Film grain — shared archival texture ──────────────────────────── */}
+      <div aria-hidden="true" className="mo-archival-grain" style={{ zIndex: 200 }} />
 
       {/* ── Vignette — draws the eye inward, reinforces dark mood ─────────── */}
       <div

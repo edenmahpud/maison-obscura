@@ -15,11 +15,6 @@ const TUNNEL_SCROLL_MULTIPLIER = 4;
 // Set to 1.0 to disable smoothing entirely (direct seek per frame).
 const VIDEO_EASE = 0.12;
 
-// BLACK ENTRY LENGTH: fraction of tunnel scroll over which the entry overlay fades.
-// 0.01 = first 1% of tunnel scroll (~4vh at 400vh total) — almost instant.
-// Increase toward 0.04 for a slightly longer soft-cut into the tunnel.
-const ENTRY_FADE_END = 0.01;
-
 // WHITE EXIT START: fraction of tunnel scroll where the exit overlay begins to appear.
 // 0.94 = last 6% of scroll (~24vh). Decrease to start the white earlier.
 const EXIT_FADE_START = 0.94;
@@ -54,7 +49,6 @@ export function S03TimeDescent() {
   const rafRef        = useRef<number | null>(null);
   const targetTimeRef = useRef(0);
   const durationRef   = useRef(0);
-  const entryOverlayRef = useRef<HTMLDivElement | null>(null);
   const exitOverlayRef  = useRef<HTMLDivElement | null>(null);
   const year2026Ref     = useRef<HTMLDivElement | null>(null);
   const year1953Ref     = useRef<HTMLDivElement | null>(null);
@@ -110,13 +104,6 @@ export function S03TimeDescent() {
           // Video seek target — RAF loop eases toward this.
           targetTimeRef.current = clamp01(p) * durationRef.current;
 
-          // Entry: black overlay dissolves almost immediately.
-          if (entryOverlayRef.current) {
-            entryOverlayRef.current.style.opacity = String(
-              1 - clamp01(p / ENTRY_FADE_END)
-            );
-          }
-
           // Exit: white overlay fades in near the end.
           if (exitOverlayRef.current) {
             exitOverlayRef.current.style.opacity = String(
@@ -163,7 +150,7 @@ export function S03TimeDescent() {
     <section
       ref={sectionRef}
       aria-label="S03 Time Descent"
-      className="relative h-screen overflow-hidden bg-black"
+      className="relative h-screen overflow-hidden bg-[#050505]"
     >
       {/* z-0: tunnel video */}
       <video
@@ -240,13 +227,6 @@ export function S03TimeDescent() {
           1953
         </div>
       </div>
-
-      {/* z-100: entry overlay — covers year text during black-screen entry */}
-      <div
-        ref={entryOverlayRef}
-        className="pointer-events-none absolute inset-0 bg-black"
-        style={{ zIndex: 100, opacity: 1 }}
-      />
 
       {/* z-100: exit overlay — covers year text during white-flash exit */}
       <div

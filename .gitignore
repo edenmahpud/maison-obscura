@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+node_modules/
+.next/
+.env
+.env.local
+
+# image staging folders
+IMAGES_SELECTED_*/
+
+# large 3D model files — add via Git LFS before committing
+*.glb
+*.gltf

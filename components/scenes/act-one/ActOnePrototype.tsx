@@ -8,6 +8,7 @@ import { S02TheQuestion } from "./S02TheQuestion";
 import { S04America1950s } from "./S04America1950s";
 import { S05Transition } from "./S05Transition";
 import { S06SadSection } from "./S06SadSection";
+import { S07ColdSection } from "./S07ColdSection";
 
 // ── SOUND CONTROLS ────────────────────────────────────────────────────────────
 // Asset path served from /public. Edit here to swap the audio file.
@@ -25,7 +26,7 @@ const SOUND_FADE_AT = 0.45;
 const SOUND_FADE_MS = 900;
 
 // ── DEBUG — set to false once sound is confirmed working ─────────────────────
-const DEBUG_SOUND = true;
+const DEBUG_SOUND = false;
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── SECTION SIZING ────────────────────────────────────────────────────────────
@@ -320,10 +321,10 @@ export function ActOnePrototype() {
   }, []);
 
   return (
-    <div className="relative bg-[#050505]">
+    <div className="relative" style={{ background: "#181818" }}>
       <FlashIntro />
-      <section ref={introRef} className="relative min-h-[700vh] bg-black">
-        <div className="sticky top-0 h-screen overflow-hidden bg-[#050505]">
+      <section ref={introRef} className="relative min-h-[700vh]" style={{ background: "#181818" }}>
+        <div className="sticky top-0 h-screen overflow-hidden" style={{ background: "#181818" }}>
           <S02TheQuestion progress={introProgress} />
           {/* Tunnel layer — z-5, above S02 (z-auto) */}
           <div
@@ -387,7 +388,7 @@ export function ActOnePrototype() {
           <div
             ref={transitionOverlayRef}
             aria-hidden="true"
-            style={{ position: "absolute", inset: 0, zIndex: 15, background: "#FCF1DA", opacity: 0, pointerEvents: "none" }}
+            style={{ position: "absolute", inset: 0, zIndex: 15, background: "#050505", opacity: 0, pointerEvents: "none" }}
           />
 
           {/* Warm exit overlay — z-20, fades in at end of tunnel scroll.      */}
@@ -403,6 +404,7 @@ export function ActOnePrototype() {
       <S04America1950s />
       <S05Transition />
       <S06SadSection />
+      <S07ColdSection />
 
       {/* ── DEBUG TEST BUTTON — remove when sound is confirmed working ───────
           Click this to bypass scroll and play the sound directly.

@@ -38,12 +38,12 @@ const EYES_DOWN_END_PROGRESS   = 0.97; /* eyes-down frame fully opaque       */
 
 // ── Circle geometry (SVG units, viewBox 0 0 1920 1080) ───────────────────────
 // CX/CY = center of the ellipse; RX/RY = horizontal/vertical radii.
-// Calibrated to the man's face + hat in the frozen final frame:
-//   face+hat spans roughly x 8–52%, y 3–56% of a 1920×1080 frame.
-const CIRCLE_CX    = 570;      /* horizontal center (0–1920) */
-const CIRCLE_CY    = 330;      /* vertical center (0–1080)   */
-const CIRCLE_RX    = 400;      /* horizontal radius (px)     */
-const CIRCLE_RY    = 285;      /* vertical radius  (px)      */
+// Calibrated to the man's face in the frozen final frame — hat brim clips the
+// top of the circle; focus is on the face below the hat.
+const CIRCLE_CX    = 555;      /* horizontal center (0–1920) */
+const CIRCLE_CY    = 470;      /* vertical center (0–1080)   */
+const CIRCLE_RX    = 360;      /* horizontal radius (px)     */
+const CIRCLE_RY    = 330;      /* vertical radius  (px)      */
 const CIRCLE_COLOR = "#7A1A1A"; /* muted dark red             */
 const CIRCLE_WIDTH = 11;       /* stroke width in SVG units  */
 
@@ -228,6 +228,7 @@ export function S05Transition() {
           pathLength={1}
           strokeDasharray="1"
           strokeDashoffset="1"
+          style={{ visibility: "hidden" }}
         />
       </svg>
     </section>

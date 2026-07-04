@@ -59,14 +59,14 @@ const TW_HIDE_END   = 90;
 const TW_TOTAL      = TW_TEXT.length; // 92
 
 // ── QUOTE typewriter (right viewport, Phase 4) ────────────────────────────────
-// Exact line breaks as specified.  '\n' at indices 42, 78, 99, 133.
+// Exact text as specified.  '\n' at indices 42, 99, 133.
 // "same sparkles" 4–16 → warm glimmer.   "hide" 150–153 → blur-fade.
-const QUOTE_TEXT      = "The same sparkles returned in every image.\nWhat first looked like beauty began\nto feel intentional.\nThe light was not there to shine.\nIt was there to hide";
+const QUOTE_TEXT      = "The same sparkles returned in every image.\nWhat first looked like beauty began to feel intentional.\nThe light was not there to shine.\nIt was there to hide.";
 const Q_SAME_START    = 4;    // "same sparkles" = chars 4–16
 const Q_SAME_END      = 16;
 const Q_HIDE_START    = 150;
 const Q_HIDE_END      = 153;
-const QUOTE_TOTAL     = QUOTE_TEXT.length; // 154
+const QUOTE_TOTAL     = QUOTE_TEXT.length; // 155
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -342,7 +342,7 @@ export function S08LightSection() {
   // ── Build quote char spans ─────────────────────────────────────────────────
   // "same sparkles" (chars 4–16) wrapped in quoteSameRef group.
   // "hide" (chars 150–153) wrapped in quoteHideRef group.
-  // '\n' at 42, 78, 99, 133 → <br> (no span).
+  // '\n' at 42, 99, 133 → <br> (no span).
   const buildQuoteContent = (): React.ReactNode[] => {
     const chars = QUOTE_TEXT.split("");
     const nodes: React.ReactNode[] = [];
@@ -404,6 +404,13 @@ export function S08LightSection() {
       </span>,
     );
 
+    // char 154: "."
+    nodes.push(
+      <span key={154} ref={el => { quoteSpansRef.current[154] = el; }} style={{ visibility: "hidden" }}>
+        {chars[154]}
+      </span>,
+    );
+
     return nodes;
   };
 
@@ -456,7 +463,7 @@ export function S08LightSection() {
       >
         <div
           ref={trackRef}
-          style={{ position: "absolute", top: 0, left: 0, width: "2800px", height: "100%", background: "#181818", willChange: "transform" }}
+          style={{ position: "absolute", top: 0, left: 0, width: "200vw", height: "100%", background: "#181818", willChange: "transform" }}
         >
 
           {/* ── LAYERS 1–7: photo collage ─────────────────────────────────── */}
@@ -533,22 +540,22 @@ export function S08LightSection() {
             </div>
           </div>
 
-          {/* ── QUOTE TEXT — right panel of 2800px track, centered (Phase 4) ── */}
-          {/* left: 100vw = past the photo collage (0–1920px).                 */}
-          {/* width: calc(2800px - 100vw) = the remaining right panel.         */}
-          {/* When track is at final x, this panel fills the viewport exactly.  */}
+          {/* ── QUOTE TEXT — right viewport, centered (Phase 4 typewriter) ── */}
+          {/* Positioned to fill the 100vw right half of the 200vw track.     */}
+          {/* When the track is fully scrolled left, this region is visible    */}
+          {/* and the text sits perfectly centered on screen.                  */}
           <div
             style={{
               position:       "absolute",
-              left:           "100vw",              // right of the photo collage
-              width:          "calc(2800px - 100vw)", // 880px at 1920px viewport
+              left:           "100vw",     // = vw(1920): right viewport starts here
+              width:          "100vw",     // fills the right viewport exactly
               height:         "100%",
               display:        "flex",
               alignItems:     "center",
               justifyContent: "center",
             }}
           >
-            <div style={{ textAlign: "center", width: "90%", maxWidth: "800px" }}>
+            <div style={{ textAlign: "center", maxWidth: "60vw" }}>
               <p
                 className="font-cormorant"
                 style={{

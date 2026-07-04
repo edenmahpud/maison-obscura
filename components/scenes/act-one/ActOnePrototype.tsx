@@ -9,6 +9,7 @@ import { S04America1950s } from "./S04America1950s";
 import { S05Transition } from "./S05Transition";
 import { S06SadSection } from "./S06SadSection";
 import { S07ColdSection } from "./S07ColdSection";
+import { S08LightSection } from "./S08LightSection";
 
 // ── SOUND CONTROLS ────────────────────────────────────────────────────────────
 // Asset path served from /public. Edit here to swap the audio file.
@@ -405,6 +406,7 @@ export function ActOnePrototype() {
       <S05Transition />
       <S06SadSection />
       <S07ColdSection />
+      <S08LightSection />
 
       {/* ── DEBUG TEST BUTTON — remove when sound is confirmed working ───────
           Click this to bypass scroll and play the sound directly.

@@ -59,11 +59,14 @@ const TW_HIDE_END   = 90;
 const TW_TOTAL      = TW_TEXT.length; // 92
 
 // ── QUOTE typewriter (right viewport, Phase 4) ────────────────────────────────
-// Exact text as specified.  '\n' at indices 42, 99, 133.
-// "same sparkles" 4–16 → warm glimmer.   "hide" 150–153 → blur-fade.
+// '\n' at indices 42, 99, 133.
+// "same sparkles" 4–16 → warm glimmer.   "shine" 127–131 → warm glimmer.
+// "hide" 150–153 → blur-fade.
 const QUOTE_TEXT      = "The same sparkles returned in every image.\nWhat first looked like beauty began to feel intentional.\nThe light was not there to shine.\nIt was there to hide.";
 const Q_SAME_START    = 4;    // "same sparkles" = chars 4–16
 const Q_SAME_END      = 16;
+const Q_SHINE_START   = 127;  // "shine" = chars 127–131
+const Q_SHINE_END     = 131;
 const Q_HIDE_START    = 150;
 const Q_HIDE_END      = 153;
 const QUOTE_TOTAL     = QUOTE_TEXT.length; // 155
@@ -111,6 +114,7 @@ export function S08LightSection() {
   // Quote typewriter (Phase 4)
   const quoteSpansRef = useRef<(HTMLSpanElement | null)[]>([]);
   const quoteSameRef  = useRef<HTMLSpanElement | null>(null);   // "same sparkles" group
+  const quoteShineRef = useRef<HTMLSpanElement | null>(null);   // "shine" group
   const quoteHideRef  = useRef<HTMLSpanElement | null>(null);   // "hide" group
 
   // Scroll-tick state (no re-render)
@@ -119,8 +123,9 @@ export function S08LightSection() {
   const sparkApplied     = useRef(false);
   const hideApplied      = useRef(false);
   const quoteLastRev     = useRef(0);
-  const quoteSameApplied = useRef(false);
-  const quoteHideApplied = useRef(false);
+  const quoteSameApplied  = useRef(false);
+  const quoteShineApplied = useRef(false);
+  const quoteHideApplied  = useRef(false);
   const paperPlayed      = useRef<boolean[]>(Array(NUM_LAYERS).fill(false));
   const twCooldown       = useRef(0);
 
@@ -251,10 +256,12 @@ export function S08LightSection() {
             if (p < HSCROLL_END_FRAC) {
               if (quoteLastRev.current > 0) {
                 quoteSpans.forEach(s => { if (s) s.style.visibility = "hidden"; });
-                quoteLastRev.current = 0;
-                quoteSameApplied.current = false;
-                quoteHideApplied.current = false;
+                quoteLastRev.current      = 0;
+                quoteSameApplied.current  = false;
+                quoteShineApplied.current = false;
+                quoteHideApplied.current  = false;
                 quoteSameRef.current?.classList.remove("s08q-same-active");
+                quoteShineRef.current?.classList.remove("s08q-shine-active");
                 quoteHideRef.current?.classList.remove("s08q-hide-blur");
               }
             } else {
@@ -280,6 +287,17 @@ export function S08LightSection() {
                 } else if (!sameDone && quoteSameApplied.current) {
                   quoteSameApplied.current = false;
                   quoteSameRef.current?.classList.remove("s08q-same-active");
+                }
+
+                // "shine" soft shimmer — fires once the word is fully typed
+                const shineDone = qTarget > Q_SHINE_END;
+                if (shineDone && !quoteShineApplied.current) {
+                  quoteShineApplied.current = true;
+                  quoteShineRef.current?.classList.add("s08q-shine-active");
+                  playSpark();
+                } else if (!shineDone && quoteShineApplied.current) {
+                  quoteShineApplied.current = false;
+                  quoteShineRef.current?.classList.remove("s08q-shine-active");
                 }
 
                 // "hide" blur-fade
@@ -332,15 +350,17 @@ export function S08LightSection() {
       lastRevealed.current      = 0;
       sparkApplied.current      = false;
       hideApplied.current       = false;
-      quoteLastRev.current      = 0;
-      quoteSameApplied.current  = false;
-      quoteHideApplied.current  = false;
+      quoteLastRev.current       = 0;
+      quoteSameApplied.current   = false;
+      quoteShineApplied.current  = false;
+      quoteHideApplied.current   = false;
       pp.current                = Array(NUM_LAYERS).fill(false);
     };
   }, []);
 
   // ── Build quote char spans ─────────────────────────────────────────────────
   // "same sparkles" (chars 4–16) wrapped in quoteSameRef group.
+  // "shine" (chars 127–131) wrapped in quoteShineRef group.
   // "hide" (chars 150–153) wrapped in quoteHideRef group.
   // '\n' at 42, 99, 133 → <br> (no span).
   const buildQuoteContent = (): React.ReactNode[] => {
@@ -373,8 +393,39 @@ export function S08LightSection() {
       </span>,
     );
 
-    // chars 17–149: normal text (with '\n' at 42, 99, 133 → <br>)
-    for (let i = Q_SAME_END + 1; i < Q_HIDE_START; i++) {
+    // chars 17–126: normal text (with '\n' at 42, 99 → <br>)
+    for (let i = Q_SAME_END + 1; i < Q_SHINE_START; i++) {
+      const ci = i;
+      const c  = chars[ci];
+      if (c === "\n") {
+        nodes.push(<br key={`nl${ci}`} />);
+      } else {
+        nodes.push(
+          <span key={ci} ref={el => { quoteSpansRef.current[ci] = el; }} style={{ visibility: "hidden" }}>
+            {c}
+          </span>,
+        );
+      }
+    }
+
+    // chars 127–131: "shine" — grouped for soft shimmer
+    const shineKids: React.ReactNode[] = [];
+    for (let i = Q_SHINE_START; i <= Q_SHINE_END; i++) {
+      const ci = i;
+      shineKids.push(
+        <span key={ci} ref={el => { quoteSpansRef.current[ci] = el; }} style={{ visibility: "hidden" }}>
+          {chars[ci]}
+        </span>,
+      );
+    }
+    nodes.push(
+      <span key="qshine" ref={quoteShineRef} className="s08q-shine-word" style={{ position: "relative", display: "inline" }}>
+        {shineKids}
+      </span>,
+    );
+
+    // chars 132–149: normal text (with '\n' at 133 → <br>)
+    for (let i = Q_SHINE_END + 1; i < Q_HIDE_START; i++) {
       const ci = i;
       const c  = chars[ci];
       if (c === "\n") {
@@ -434,6 +485,18 @@ export function S08LightSection() {
           0%   { opacity:1; filter:blur(0); }
           35%  { opacity:.55; filter:blur(2.5px); }
           100% { opacity:0; filter:blur(12px); }
+        }
+        /* QUOTE "shine" — same warm glimmer as "same sparkles" */
+        .s08q-shine-word.s08q-shine-active { animation: s08qShineGlow 4s ease-out forwards; }
+        @keyframes s08qShineGlow {
+          0%   { text-shadow: none; filter: none; }
+          8%   { text-shadow: 0 0 22px rgba(255,248,210,.95),
+                              0 0 8px  rgba(255,238,170,.85),
+                              0 0 2px  rgba(255,255,230,.7);
+                 filter: brightness(1.45); }
+          30%  { text-shadow: 0 0 12px rgba(255,242,185,.45);
+                 filter: brightness(1.12); }
+          100% { text-shadow: none; filter: none; }
         }
         /* QUOTE "same sparkles" — delicate warm flash, like light catching fabric */
         .s08q-same-word.s08q-same-active { animation: s08qSameGlow 4s ease-out forwards; }

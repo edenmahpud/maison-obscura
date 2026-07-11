@@ -76,7 +76,7 @@ const PHASE = {
   P2_BLUR_END:      0.86,
   P2_ZOOM_START:    0.64,
   P2_ZOOM_END:      0.88,
-  EXIT_START:       0.84,
+  EXIT_START:       0.95,
 };
 
 function lerp01(p: number, lo: number, hi: number): number {

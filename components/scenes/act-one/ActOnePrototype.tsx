@@ -19,6 +19,7 @@ import { FBISection } from "./FBISection";
 import { ArrestSection } from "./ArrestSection";
 import { ReverseTunnelSection } from "./ReverseTunnelSection";
 import { DesignModePanel } from "../../dev/DesignModePanel";
+import { initAudioManager, duckMusic, restoreMusic } from "@/lib/audio";
 
 // ── SOUND CONTROLS ────────────────────────────────────────────────────────────
 // Asset path served from /public. Edit here to swap the audio file.
@@ -106,6 +107,11 @@ export function ActOnePrototype() {
   const progressRef = useRef(0);       // stable ref for use inside event callbacks
   const playStartTimeRef = useRef(0);  // timestamp when play() succeeded
 
+  // Mount the global AudioManager (background music + SFX + ducking) once.
+  useEffect(() => {
+    return initAudioManager();
+  }, []);
+
   // Initialize audio on mount and attach unlock listeners
   useEffect(() => {
     log("Creating Audio object from:", AUDIO_SRC);
@@ -147,6 +153,8 @@ export function ActOnePrototype() {
         .then(() => {
           playStartTimeRef.current = performance.now();
           log("→ play() succeeded ✓, volume:", audio.volume);
+          // Duck background music while the opening flash sound is prominent.
+          duckMusic("flash");
         })
         .catch((err) => {
           console.error("[Sound] → play() FAILED:", err);
@@ -163,6 +171,7 @@ export function ActOnePrototype() {
     return () => {
       audio.pause();
       audioRef.current = null;
+      restoreMusic("flash");
       window.removeEventListener("pointerdown", tryPlay);
       window.removeEventListener("keydown", tryPlay);
       window.removeEventListener("wheel", tryPlay);
@@ -207,6 +216,7 @@ export function ActOnePrototype() {
             audioRef.current.volume = AUDIO_VOLUME; // restore for potential replay
           }
           isFadingRef.current = false;
+          restoreMusic("flash");
           log("Fade-out complete, audio paused");
         }
       };

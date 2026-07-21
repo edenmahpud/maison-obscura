@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { playSfx } from "@/lib/audio";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -99,6 +100,7 @@ export function S10PlaceSection() {
   const p2IntRef   = useRef<HTMLDivElement | null>(null);
   const introRef   = useRef<HTMLDivElement | null>(null);
   const exitRef    = useRef<HTMLDivElement | null>(null);
+  const doorSoundPlayed = useRef(false);
 
   // ── Video: autoplay loop via IntersectionObserver ─────────────────────────
   useEffect(() => {
@@ -154,6 +156,13 @@ export function S10PlaceSection() {
             p1IntRef.current.style.opacity = String(lerp01(p, PHASE.P1_INT_START, PHASE.P1_INT_END));
 
           // Doors — open, then fade out before interior takes full control
+          if (p >= PHASE.DOOR_OPEN_START && !doorSoundPlayed.current) {
+            doorSoundPlayed.current = true;
+            playSfx("door");
+          } else if (p < PHASE.DOOR_OPEN_START && doorSoundPlayed.current) {
+            doorSoundPlayed.current = false;
+          }
+
           const doorOp = 1 - lerp01(p, PHASE.DOOR_FADE_START, PHASE.DOOR_FADE_END);
           const angle  = eio(lerp01(p, PHASE.DOOR_OPEN_START, PHASE.DOOR_OPEN_END)) * 78;
           if (doorsRef.current)

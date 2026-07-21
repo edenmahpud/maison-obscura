@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { RED_INK_COLOR, RED_INK_STROKE_WIDTH } from "@/components/effects/redInk";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -29,8 +30,12 @@ function btop(figmaLeftVisual: number, figmaOuterW: number): string {
 }
 const imgStyle: React.CSSProperties = { width: "100%", height: "auto", display: "block" };
 
+function isDesignMode() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("designMode") === "true";
+}
+
 // ── Red investigation circle paths (hand-drawn ovals, viewBox 0 0 100 100) ───
-const OVAL_COLOR = "#C1001A";
 const CIRCLE_PATH_1 =
   "M 50 6 C 74 2 97 22 96 50 C 95 78 75 98 50 96 C 25 94 2 75 4 50 " +
   "C 6 25 24 10 50 6 Z";
@@ -60,7 +65,8 @@ const TOTAL_CHARS = CHARS.length; // 132
 // ── Parallax speeds for image wrappers (max travel ±36px = speed×60) ──────
 // 0=star2 1=star4 2=star3 3=star5 4=star7 5=star6 6=star8 7=image564
 // 8=star12 9=satr9 10=star13 11=star10 12=star11 13=star14 14=star15 15=video
-const IMG_SPEEDS = [0.5,-0.6,0.35,-0.45,0.3,0.4,-0.35,0.25,-0.3,0.35,-0.4,0.5,-0.35,0.25,-0.3,-0.25];
+// 16=star20
+const IMG_SPEEDS = [0.5,-0.6,0.35,-0.45,0.3,0.4,-0.35,0.25,-0.3,0.35,-0.4,0.5,-0.35,0.25,-0.3,-0.25,0.3];
 
 export function S09StarSection() {
   const sectionRef      = useRef<HTMLElement | null>(null);
@@ -79,6 +85,14 @@ export function S09StarSection() {
   const oval1Ref = useRef<SVGPathElement | null>(null);
   const oval2Ref = useRef<SVGPathElement | null>(null);
   const oval3Ref = useRef<SVGPathElement | null>(null);
+
+  // Red investigation thread — connects the three circles top to bottom
+  const threadWrapRef = useRef<HTMLDivElement | null>(null);
+  const threadPathRef = useRef<SVGPathElement | null>(null);
+
+  // Closing text block red guide lines
+  const quoteLine1Ref = useRef<SVGLineElement | null>(null); // horizontal, from left
+  const quoteLine2Ref = useRef<SVGLineElement | null>(null); // vertical, below block
 
   function ir(i: number) {
     return (el: HTMLDivElement | null) => { imgRefs.current[i] = el; };
@@ -104,7 +118,11 @@ export function S09StarSection() {
   }, []);
 
   // ── Parallax ──────────────────────────────────────────────────────────────
+  // Skipped in Design Mode: this scrubs gsap.set(el, {y}) on every scroll
+  // tick for all 16 images, which would silently overwrite any position a
+  // Design Mode drag/field edit had just applied on the next scroll event.
   useEffect(() => {
+    if (isDesignMode()) return;
     const section = sectionRef.current;
     if (!section) return;
     const ctx = gsap.context(() => {
@@ -156,6 +174,21 @@ export function S09StarSection() {
     return () => ctx.revert();
   }, []);
 
+  // ── Red investigation thread ───────────────────────────────────────────────
+  // Rendered fully drawn at all times (see strokeDashoffset="0" in the JSX
+  // below) — no separate scroll-triggered "draw-in" animation. An earlier
+  // version tied stroke-dashoffset to a second, independent ScrollTrigger
+  // (onEnter/once) meant to fire once the board scrolled into view; in
+  // practice that trigger did not reliably fire in step with how the page
+  // actually scrolls, so the path sat almost entirely undrawn (dashoffset
+  // ~1) for most of the time the section was on screen — which is exactly
+  // what read as a sparse, broken set of fragments rather than one
+  // continuous line, since only a sliver of its length was ever drawn.
+  // The wrapper instead carries `data-s09` so it fades in via the same
+  // opacity/blur reveal every other element on this board already uses
+  // (see the effect above) — one proven mechanism instead of two competing
+  // ones.
+
   // ── Quote pin + typewriter + word effects ─────────────────────────────────
   useEffect(() => {
     const section = quoteSectionRef.current;
@@ -172,6 +205,12 @@ export function S09StarSection() {
         pin:     true,
         scrub:   1,
         onUpdate: ({ progress }) => {
+          // Red guide lines draw in solid over the first 15% of this pin's
+          // scroll, well before the typewriter finishes — then hold complete.
+          const lineP = Math.min(1, progress / 0.15);
+          quoteLine1Ref.current?.setAttribute("x2", String(lineP * 100));
+          quoteLine2Ref.current?.setAttribute("y2", String(lineP * 100));
+
           const revealed = Math.round(progress * TOTAL_CHARS);
           charRefs.current.forEach((s, i) => {
             if (s) s.style.opacity = i < revealed ? "1" : "0";
@@ -284,7 +323,7 @@ export function S09StarSection() {
       >
 
         {/* ── LABEL STRIP 1 — star1.png banner ────────────────────────────── */}
-        <div data-s09 style={{ position: "absolute", left: vw(92.71), top: btop(3587.26, 134.908), width: vw(720.701), zIndex: 2 }}>
+        <div data-s09 data-design-star-key="img-16" style={{ position: "absolute", left: vw(92.71), top: btop(3587.26, 134.908), width: vw(720.701), zIndex: 2 }}>
           <Image src="/assets/star/star1.png" alt="" aria-hidden width={1440} height={262} style={imgStyle} />
         </div>
         {/* ── "The House Behind the Flash" · Figma 836:1326 ────────────────────
@@ -300,14 +339,14 @@ export function S09StarSection() {
         </div>
 
         {/* ── star2 — flags · parallax 0 ───────────────────────────────────── */}
-        <div ref={ir(0)} style={{ position: "absolute", left: vw(90.38), top: btop(3158.32, 413.844), width: vw(895.208), zIndex: 2 }}>
+        <div ref={ir(0)} data-design-star-key="img-0" style={{ position: "absolute", left: vw(90.38), top: btop(3158.32, 413.844), width: vw(895.208), zIndex: 2 }}>
           <div data-s09>
             <Image src="/assets/star/star2.png" alt="Soviet and American flags" width={1786} height={818} style={imgStyle} />
           </div>
         </div>
 
         {/* ── star4 — medal · parallax 1 ───────────────────────────────────── */}
-        <div ref={ir(1)} style={{ position: "absolute", left: vw(1298.55), top: btop(3226.02, 517.789), width: vw(517.789), zIndex: 4 }}>
+        <div ref={ir(1)} data-design-star-key="img-1" style={{ position: "absolute", left: vw(1298.55), top: btop(3226.02, 517.789), width: vw(517.789), zIndex: 4 }}>
           <div data-s09>
             <Image src="/assets/star/star4.png" alt="Soviet star medal" width={1042} height={1042} style={imgStyle} />
           </div>
@@ -317,6 +356,7 @@ export function S09StarSection() {
         {/* Figma: left=3358.77 top=1425.53 w=246.6 h=252.135 → browser: left=vw(1425.53) top=239px */}
         <div
           data-circle-trigger
+          data-design-star-key="circle-0"
           style={{ position: "absolute", left: vw(1425.53), top: "239px", width: vw(246.6), aspectRatio: "246.6 / 252.135", zIndex: 6, pointerEvents: "none" }}
         >
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
@@ -324,8 +364,9 @@ export function S09StarSection() {
               ref={oval1Ref}
               d={CIRCLE_PATH_1}
               fill="none"
-              stroke={OVAL_COLOR}
-              strokeWidth={3.5}
+              stroke={RED_INK_COLOR}
+              strokeWidth={RED_INK_STROKE_WIDTH}
+              vectorEffect="non-scaling-stroke"
               strokeLinecap="round"
               strokeLinejoin="round"
               pathLength="1"
@@ -337,7 +378,7 @@ export function S09StarSection() {
         </div>
 
         {/* ── star3 — US roundel (scaleY −1) · parallax 2 ──────────────────── */}
-        <div ref={ir(2)} style={{ position: "absolute", left: vw(263.27), top: btop(2863.11, 442.17), width: vw(587.375), zIndex: 3 }}>
+        <div ref={ir(2)} data-design-star-key="img-2" style={{ position: "absolute", left: vw(263.27), top: btop(2863.11, 442.17), width: vw(587.375), zIndex: 3 }}>
           <div data-s09>
             <Image src="/assets/star/star3.png" alt="US Air Force star roundel" width={1170} height={878}
               style={{ ...imgStyle, transform: "scaleY(-1)" }} />
@@ -345,7 +386,7 @@ export function S09StarSection() {
         </div>
 
         {/* ── star5 — large tilted portrait 10.15° · parallax 3 ────────────── */}
-        <div ref={ir(3)} style={{ position: "absolute", left: vw(988.98), top: btop(2626.82, 735.847), width: vw(627.967), zIndex: 3 }}>
+        <div ref={ir(3)} data-design-star-key="img-3" style={{ position: "absolute", left: vw(988.98), top: btop(2626.82, 735.847), width: vw(627.967), zIndex: 3 }}>
           <div data-s09 style={{ borderRadius: "19px", overflow: "hidden", transform: "rotate(10.15deg)", transformOrigin: "top left" }}>
             <Image src="/assets/star/star5.png" alt="" aria-hidden width={1042} height={1309} style={imgStyle} />
           </div>
@@ -353,7 +394,7 @@ export function S09StarSection() {
 
         {/* ── star7 — small angled photo · parallax 4 ──────────────────────── */}
         {/* Figma: 818:1225  left=2317.78  top=53.26  w=354.199 h=394.751  inner rot=105.01° → browser 15.01° */}
-        <div ref={ir(4)} style={{ position: "absolute", left: vw(53.26), top: btop(2317.78, 354.199), width: vw(394.751), zIndex: 3 }}>
+        <div ref={ir(4)} data-design-star-key="img-4" style={{ position: "absolute", left: vw(53.26), top: btop(2317.78, 354.199), width: vw(394.751), zIndex: 3 }}>
           <div data-s09 style={{ transform: "rotate(15.01deg)", transformOrigin: "top left" }}>
             <Image src="/assets/star/star7.png" alt="" aria-hidden width={685} height={574} style={imgStyle} />
           </div>
@@ -378,7 +419,7 @@ export function S09StarSection() {
         </div>
 
         {/* ── star-video · parallax 15 ──────────────────────────────────────── */}
-        <div ref={ir(15)} style={{ position: "absolute", left: vw(275.35), top: btop(2601.11, 320.042), width: vw(562.713), height: vy(320.042), zIndex: 4 }}>
+        <div ref={ir(15)} data-design-star-key="img-15" style={{ position: "absolute", left: vw(275.35), top: btop(2601.11, 320.042), width: vw(562.713), height: vy(320.042), zIndex: 4 }}>
           <div data-s09 style={{ width: "100%", height: "100%" }}>
             <video ref={videoRef} src="/assets/star/star-video.mp4" muted loop playsInline preload="auto"
               style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
@@ -386,7 +427,7 @@ export function S09StarSection() {
         </div>
 
         {/* ── star6 — small angled photo · parallax 5 ──────────────────────── */}
-        <div ref={ir(5)} style={{ position: "absolute", left: vw(1369.5), top: btop(2503.28, 368.915), width: vw(422.715), zIndex: 3 }}>
+        <div ref={ir(5)} data-design-star-key="img-5" style={{ position: "absolute", left: vw(1369.5), top: btop(2503.28, 368.915), width: vw(422.715), zIndex: 3 }}>
           <div data-s09 style={{ transform: "rotate(-9.08deg)", transformOrigin: "top left" }}>
             <Image src="/assets/star/star6.png" alt="" aria-hidden width={768} height={640} style={imgStyle} />
           </div>
@@ -394,7 +435,7 @@ export function S09StarSection() {
 
         {/* ── star8 — oval portrait (intentional oval clip) · parallax 6 ─────
             Figma inner rot=80.63° → browser −9.37°                           */}
-        <div ref={ir(6)} style={{ position: "absolute", left: vw(432.04), top: btop(2153.53, 459.584), width: vw(469.653), height: vy(459.584), zIndex: 3 }}>
+        <div ref={ir(6)} data-design-star-key="img-6" style={{ position: "absolute", left: vw(432.04), top: btop(2153.53, 459.584), width: vw(469.653), height: vy(459.584), zIndex: 3 }}>
           <div data-s09 style={{ width: "100%", height: "100%", overflow: "hidden", borderRadius: "155px", transform: "rotate(-9.37deg)", transformOrigin: "top left" }}>
             <Image src="/assets/star/star8.png" alt="Period portrait photograph" fill sizes="24vw" style={{ objectFit: "cover" }} />
           </div>
@@ -418,7 +459,7 @@ export function S09StarSection() {
         </div>
 
         {/* ── image564 — central archive photo, rounded corners · parallax 7 ── */}
-        <div ref={ir(7)} style={{ position: "absolute", left: vw(111.68), top: btop(1415.03, 577.803), width: vw(889.099), zIndex: 3 }}>
+        <div ref={ir(7)} data-design-star-key="img-7" style={{ position: "absolute", left: vw(111.68), top: btop(1415.03, 577.803), width: vw(889.099), zIndex: 3 }}>
           <div data-s09 style={{ borderRadius: "17px", overflow: "hidden" }}>
             <Image src="/assets/star/image 564.png" alt="Maison Obscura archive" width={1772} height={1146} style={imgStyle} />
           </div>
@@ -428,6 +469,7 @@ export function S09StarSection() {
         {/* Figma: left=2850.46 top=1081.31 w=150.712 h=147.691 → browser: left=vw(1081.31) top=877px */}
         <div
           data-circle-trigger
+          data-design-star-key="circle-1"
           style={{ position: "absolute", left: vw(1081.31), top: "877px", width: vw(150.712), aspectRatio: "150.712 / 147.691", zIndex: 6, pointerEvents: "none" }}
         >
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
@@ -435,8 +477,9 @@ export function S09StarSection() {
               ref={oval2Ref}
               d={CIRCLE_PATH_2}
               fill="none"
-              stroke={OVAL_COLOR}
-              strokeWidth={3.5}
+              stroke={RED_INK_COLOR}
+              strokeWidth={RED_INK_STROKE_WIDTH}
+              vectorEffect="non-scaling-stroke"
               strokeLinecap="round"
               strokeLinejoin="round"
               pathLength="1"
@@ -449,7 +492,7 @@ export function S09StarSection() {
 
         {/* ── star12 — small angled photo · parallax 8 ─────────────────────── */}
         {/* Figma 818:1224  left=1223.82 top=779.33 w=354.199 h=394.751  rot=105.01°→15.01° */}
-        <div ref={ir(8)} data-s09 style={{ position: "absolute", left: vw(779.33), top: btop(1223.82, 354.199), width: vw(394.751), zIndex: 3 }}>
+        <div ref={ir(8)} data-s09 data-design-star-key="img-8" style={{ position: "absolute", left: vw(779.33), top: btop(1223.82, 354.199), width: vw(394.751), zIndex: 3 }}>
           <div style={{ transform: "rotate(15.01deg)", transformOrigin: "top left" }}>
             <Image src="/assets/star/star12.png" alt="" aria-hidden width={687} height={576} style={imgStyle} />
           </div>
@@ -474,14 +517,15 @@ export function S09StarSection() {
         </div>
 
         {/* ── LABEL STRIP 2 — star1.png banner ────────────────────────────── */}
-        <div data-s09 style={{ position: "absolute", left: vw(94.16), top: btop(2014.47, 133.659), width: vw(490.704), zIndex: 2 }}>
+        <div data-s09 data-design-star-key="img-17" style={{ position: "absolute", left: vw(94.16), top: btop(2014.47, 133.659), width: vw(490.704), zIndex: 2 }}>
           <Image src="/assets/star/star1.png" alt="" aria-hidden width={1440} height={262} style={imgStyle} />
         </div>
         {/* ── "The Founders" · Figma 839:1328 ──────────────────────────────────
-            left=2059.04 top=200.4 outer_w=45.515 outer_h=279.235  rot≈0°    */}
+            left=2059.04 top=200.4 outer_w=45.515 outer_h=279.235  rot≈0°
+            Nudged a few px up so it sits cleanly on star1.png's banner. */}
         <div data-s09 style={{
           position: "absolute",
-          left: vw(200.4), top: btop(2059.04, 45.515),
+          left: vw(200.4), top: `calc(${btop(2059.04, 45.515)} - 12px)`,
           width: vw(279.235), zIndex: 3, pointerEvents: "none",
         }}>
           <p className="font-cormorant" style={{ fontWeight: 400, fontSize: "clamp(14px, 2.08vw, 40px)", lineHeight: 1.09, letterSpacing: "-0.8px", color: "#414141", whiteSpace: "nowrap", textTransform: "capitalize" }}>
@@ -489,8 +533,19 @@ export function S09StarSection() {
           </p>
         </div>
 
+        {/* ── star20 — founders outside the tailor shop, 1953 · parallax 16 ───
+            Placed in the one open pocket in this cluster: below "The
+            Founders" label, left of satr9, above star13. Sized up (39vw,
+            was 34vw) for stronger visual presence while still clearing
+            the label above and star13 below. */}
+        <div ref={ir(16)} data-design-star-key="img-18" style={{ position: "absolute", left: "1.8vw", top: "1860px", width: "39vw", zIndex: 3 }}>
+          <div data-s09 style={{ borderRadius: "10px", overflow: "hidden", transform: "rotate(-4deg)", transformOrigin: "top left" }}>
+            <Image src="/assets/star/star20.png" alt="Nikolai and Eleanor outside the tailor shop, 1953" width={1772} height={1146} style={imgStyle} />
+          </div>
+        </div>
+
         {/* ── satr9 — full-length founders portrait · parallax 9 ───────────── */}
-        <div ref={ir(9)} style={{ position: "absolute", left: vw(1029.81), top: btop(1610.59, 893.845), width: vw(670.244), zIndex: 3 }}>
+        <div ref={ir(9)} data-design-star-key="img-9" style={{ position: "absolute", left: vw(1029.81), top: btop(1610.59, 893.845), width: vw(670.244), zIndex: 3 }}>
           <div data-s09>
             <Image src="/assets/star/satr9.png" alt="Portrait from the archive" width={1351} height={1795} style={imgStyle} />
           </div>
@@ -499,17 +554,18 @@ export function S09StarSection() {
         {/* ── star13 — angled newspaper document · parallax 10 ─────────────────
             Figma 818:1229  left=1242.65  top=41.4  w=303.861 h=406.536
             inner rot=73.33° → browser −16.67°                                */}
-        <div ref={ir(10)} data-s09 style={{ position: "absolute", left: vw(41.4), top: btop(1242.65, 303.861), width: vw(406.536), zIndex: 3 }}>
+        <div ref={ir(10)} data-s09 data-design-star-key="img-10" style={{ position: "absolute", left: vw(41.4), top: btop(1242.65, 303.861), width: vw(406.536), zIndex: 3 }}>
           <div style={{ transform: "rotate(-16.67deg)", transformOrigin: "top left" }}>
             <Image src="/assets/star/star13.png" alt="" aria-hidden width={730} height={428} style={imgStyle} />
           </div>
         </div>
 
         {/* ── "America" — annotation label · Figma 818:1230 ────────────────────
-            left=1432.94  top=210.06  inner rot=72.07° → −17.93°  font=21.284px */}
+            left=1432.94  top=210.06  inner rot=72.07° → −17.93°  font=21.284px
+            Nudged a few px up to sit correctly on star13.png. */}
         <div data-s09 style={{
           position: "absolute",
-          left: vw(210.06), top: btop(1432.94, 53.421),
+          left: vw(210.06), top: `calc(${btop(1432.94, 53.421)} - 5px)`,
           transform: "rotate(-17.93deg)", transformOrigin: "top left", zIndex: 5, pointerEvents: "none",
         }}>
           <p style={{
@@ -520,10 +576,11 @@ export function S09StarSection() {
         </div>
 
         {/* ── "1950-1953" — annotation label · Figma 818:1231 ──────────────────
-            left=1386.05  top=174.06  inner rot=72.07° → −17.93°  font=21.284px */}
+            left=1386.05  top=174.06  inner rot=72.07° → −17.93°  font=21.284px
+            Nudged a few px up to sit correctly on star13.png. */}
         <div data-s09 style={{
           position: "absolute",
-          left: vw(174.06), top: btop(1386.05, 61.116),
+          left: vw(174.06), top: `calc(${btop(1386.05, 61.116)} - 5px)`,
           transform: "rotate(-17.93deg)", transformOrigin: "top left", zIndex: 5, pointerEvents: "none",
         }}>
           <p style={{
@@ -535,10 +592,11 @@ export function S09StarSection() {
 
         {/* ── "Nikolai Volkov & Eleanor Voss" · Figma 818:1232 ─────────────────
             left=calc(50%−565.21)=1354.79  top=197.73
-            inner rot=72.19° → −17.81°  font=20px  w=202.493px               */}
+            inner rot=72.19° → −17.81°  font=20px  w=202.493px
+            Nudged a few px up to sit correctly on star13.png.             */}
         <div data-s09 style={{
           position: "absolute",
-          left: vw(197.73), top: btop(1354.79, 98.102), width: vw(202.493),
+          left: vw(197.73), top: `calc(${btop(1354.79, 98.102)} - 5px)`, width: vw(202.493),
           transform: "rotate(-17.81deg)", transformOrigin: "top left", zIndex: 5, pointerEvents: "none",
         }}>
           <p style={{
@@ -554,6 +612,7 @@ export function S09StarSection() {
         {/* Figma: left=1866.85 top=1117.99 w=341.767 h=342.089 → browser: left=vw(1117.99) top=1699px */}
         <div
           data-circle-trigger
+          data-design-star-key="circle-2"
           style={{ position: "absolute", left: vw(1117.99), top: "1699px", width: vw(341.767), aspectRatio: "341.767 / 342.089", zIndex: 6, pointerEvents: "none" }}
         >
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
@@ -561,8 +620,9 @@ export function S09StarSection() {
               ref={oval3Ref}
               d={CIRCLE_PATH_3}
               fill="none"
-              stroke={OVAL_COLOR}
-              strokeWidth={3.5}
+              stroke={RED_INK_COLOR}
+              strokeWidth={RED_INK_STROKE_WIDTH}
+              vectorEffect="non-scaling-stroke"
               strokeLinecap="round"
               strokeLinejoin="round"
               pathLength="1"
@@ -573,30 +633,77 @@ export function S09StarSection() {
           </svg>
         </div>
 
+        {/* ── Red investigation thread — one straight spine spanning the whole ──
+            board. Bounding box covers the full board WIDTH (0 → 100%) and the
+            full HEIGHT (0 → SECTION_CSS_H) so it runs the entire image
+            sequence top to bottom, not just a narrow column.
+            The path is a single, gently-curved, strictly top-to-bottom
+            monotonic line (no back-and-forth zigzag) — the same restrained
+            "one continuous spine" character as the Happy (S04) section's own
+            thread, which likewise never doubles back on itself.
+            viewBox height (170.8, not 100) matches this container's real
+            aspect ratio at the ~1920px reference width (SECTION_CSS_H/1920×
+            100 ≈ 170.8), so the x/y scale factors applied by
+            preserveAspectRatio="none" are equal. That's what keeps the
+            non-scaling stroke a CONSTANT width along the whole path — with a
+            distorted (100×100) viewBox, a path with segments running in
+            different directions gets stroked at different effective widths
+            depending on local angle, which is what was reading as "uneven
+            thickness" before.
+            zIndex 1 + color/thickness matched to S04's own thread, which
+            sits at z:2 — below every photo (z:3+) there. Every star image
+            has zIndex ≥ 2, so z:1 here keeps this thread behind all of them
+            (and behind text) — it can only ever show in the gaps. */}
+        <div
+          ref={threadWrapRef}
+          data-s09
+          aria-hidden="true"
+          data-design-star-key="thread-0"
+          style={{ position: "absolute", left: "0px", top: "0px", width: "100%", height: `${SECTION_CSS_H}px`, zIndex: 1, pointerEvents: "none" }}
+        >
+          <svg viewBox="0 0 100 170.8" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+            <path
+              ref={threadPathRef}
+              d="M 45 0 C 55 25.6 62 42.7 58 68.3 C 54 93.9 48 119.6 52 145.2 C 54 157.1 50 165.7 50 170.8"
+              fill="none"
+              stroke="#b71c1c"
+              strokeWidth="1.5"
+              opacity="0.82"
+              vectorEffect="non-scaling-stroke"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              pathLength="1"
+              strokeDasharray="1"
+              strokeDashoffset="0"
+              style={{ visibility: "visible" }}
+            />
+          </svg>
+        </div>
+
         {/* ── star10 — ID card / newspaper · parallax 11 ───────────────────────
             Figma 818:1234  left=1324.3  top=1198.63  inner rot=98.38° → 8.38° */}
-        <div ref={ir(11)} style={{ position: "absolute", left: vw(1198.63), top: btop(1324.3, 473.527), width: vw(638.853), zIndex: 3 }}>
+        <div ref={ir(11)} data-design-star-key="img-11" style={{ position: "absolute", left: vw(1198.63), top: btop(1324.3, 473.527), width: vw(638.853), zIndex: 3 }}>
           <div data-s09 style={{ transform: "rotate(8.38deg)", transformOrigin: "top left" }}>
             <Image src="/assets/star/star10.png" alt="Archive document" width={1185} height={797} style={imgStyle} />
           </div>
         </div>
 
         {/* ── star11 — square ID card photo, rounded corners · parallax 12 ──── */}
-        <div ref={ir(12)} style={{ position: "absolute", left: vw(1351.28), top: btop(1112.51, 331.776), width: vw(329.787), zIndex: 3 }}>
+        <div ref={ir(12)} data-design-star-key="img-12" style={{ position: "absolute", left: vw(1351.28), top: btop(1112.51, 331.776), width: vw(329.787), zIndex: 3 }}>
           <div data-s09 style={{ borderRadius: "13px", overflow: "hidden" }}>
             <Image src="/assets/star/star11.png" alt="Identification card" width={656} height={660} style={imgStyle} />
           </div>
         </div>
 
         {/* ── star14 — founders couple portrait · parallax 13 ──────────────── */}
-        <div ref={ir(13)} style={{ position: "absolute", left: vw(124.83), top: btop(823.51, 427.537), width: vw(567.484), zIndex: 3 }}>
+        <div ref={ir(13)} data-design-star-key="img-13" style={{ position: "absolute", left: vw(124.83), top: btop(823.51, 427.537), width: vw(567.484), zIndex: 3 }}>
           <div data-s09>
             <Image src="/assets/star/star14.png" alt="Founder portrait" width={1131} height={849} style={imgStyle} />
           </div>
         </div>
 
         {/* ── star15 — secondary archive photograph · parallax 14 ───────────── */}
-        <div ref={ir(14)} style={{ position: "absolute", left: vw(698.78), top: btop(837.94, 401.883), width: vw(534.159), zIndex: 3 }}>
+        <div ref={ir(14)} data-design-star-key="img-14" style={{ position: "absolute", left: vw(698.78), top: btop(837.94, 401.883), width: vw(534.159), zIndex: 3 }}>
           <div data-s09>
             <Image src="/assets/star/star15.png" alt="" aria-hidden width={1064} height={798} style={imgStyle} />
           </div>
@@ -617,12 +724,70 @@ export function S09StarSection() {
         style={{ position: "relative", background: "#181818", height: "100vh", width: "100%", overflowX: "hidden" }}
       >
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 10vw" }}>
-          <p
-            className="font-cormorant"
-            style={{ fontWeight: 400, fontSize: "clamp(18px, 3.8vw, 74px)", lineHeight: 1.38, letterSpacing: "-1.4px", textAlign: "center", maxWidth: "72vw" }}
-          >
-            {buildQuoteContent()}
-          </p>
+          <div style={{ position: "relative", textAlign: "left", width: "min(720px, 85vw)" }}>
+            {/* Red guide lines — horizontal enters from the left and stops a
+                few pixels short of the title; vertical drops from the same
+                left axis as the title/paragraph, not centered under the
+                block. Same solid (non-dashed) endpoint-growth technique as
+                Cold. */}
+            <div
+              aria-hidden="true"
+              data-design-star-key="line-0"
+              style={{ position: "absolute", top: "44px", left: "-25vw", width: "calc(25vw - 14px)", height: "8px", pointerEvents: "none" }}
+            >
+              <svg viewBox="0 0 100 10" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+                <line
+                  ref={quoteLine1Ref}
+                  x1="0" y1="5" x2="0" y2="5"
+                  stroke={RED_INK_COLOR}
+                  strokeWidth={RED_INK_STROKE_WIDTH}
+                  vectorEffect="non-scaling-stroke"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+            <div
+              aria-hidden="true"
+              data-design-star-key="line-1"
+              style={{ position: "absolute", top: "100%", left: "0", width: "8px", height: "120px", pointerEvents: "none" }}
+            >
+              <svg viewBox="0 0 10 100" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+                <line
+                  ref={quoteLine2Ref}
+                  x1="5" y1="0" x2="5" y2="0"
+                  stroke={RED_INK_COLOR}
+                  strokeWidth={RED_INK_STROKE_WIDTH}
+                  vectorEffect="non-scaling-stroke"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+
+            <p
+              className="font-cormorant"
+              data-design-star-key="text-title"
+              style={{
+                fontStyle:     "italic",
+                fontWeight:    600,
+                fontSize:      "80px",
+                lineHeight:    1.53,
+                letterSpacing: "-1.6px",
+                color:         "#bd9969",
+                textTransform: "capitalize",
+                whiteSpace:    "nowrap",
+                margin:        "0 0 12px",
+              }}
+            >
+              Nikolai and Eleanor
+            </p>
+            <p
+              className="cinematic-text"
+              data-design-star-key="text-body"
+              style={{ letterSpacing: "-1.4px", margin: 0 }}
+            >
+              {buildQuoteContent()}
+            </p>
+          </div>
         </div>
         <div aria-hidden="true" className="mo-archival-grain" style={{ zIndex: 200 }} />
         <div aria-hidden="true" className="pointer-events-none absolute inset-0"

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { playSfx } from "@/lib/audio";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -153,6 +154,7 @@ export function S12InvestigationBoard() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const stickyRef  = useRef<HTMLDivElement | null>(null);
   const boardRef   = useRef<HTMLDivElement | null>(null);
+  const revealSoundPlayed = useRef(false);
 
   // ── Scale board to fit viewport, never upscale ────────────────────────────
   useEffect(() => {
@@ -196,6 +198,17 @@ export function S12InvestigationBoard() {
         start: "top -30%",
         end:   "top -70%",
         scrub: 0.4,
+        onUpdate: (self) => {
+          // Evidence (paper) settles in first; the red circles get drawn in
+          // shortly after, once the board itself is mostly legible.
+          if (self.progress > 0.15 && !revealSoundPlayed.current) {
+            revealSoundPlayed.current = true;
+            playSfx("paper");
+            setTimeout(() => playSfx("redCircle"), 350);
+          } else if (self.progress <= 0.15 && revealSoundPlayed.current) {
+            revealSoundPlayed.current = false;
+          }
+        },
       },
     });
 

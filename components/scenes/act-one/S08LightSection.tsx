@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { playSfx } from "@/lib/audio";
+import { RED_INK_COLOR, RED_INK_STROKE_WIDTH } from "@/components/effects/redInk";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -48,6 +50,10 @@ const CARD_END_FRAC    = REVEAL_FRAC + CARD_PIN_FRAC;      // 0.4000
 const HSCROLL_FRAC     = HSCROLL_SCROLL   / TOTAL_SCROLL;  // 0.3333
 const HSCROLL_END_FRAC = CARD_END_FRAC + HSCROLL_FRAC;     // 0.7333
 
+// ── Red guide lines (Phase 4) — draw in solid as the quote pin begins ────────
+const LINE_REVEAL_START = HSCROLL_END_FRAC;
+const LINE_REVEAL_END   = HSCROLL_END_FRAC + 0.05;
+
 // ── CARD typewriter (light8.png, Phase 2) ────────────────────────────────────
 // '\n' at index 50 → <br>.
 // "spark" 9–13  → amber glow.    "hide" 87–90 → blur-fade.
@@ -78,11 +84,6 @@ function vw(px: number): string {
 }
 function vh(px: number): string {
   return `${((px / CANVAS_H) * 100).toFixed(3)}vh`;
-}
-function playClip(path: string, volume: number): void {
-  const a = new Audio(path);
-  a.volume = volume;
-  a.play().catch(() => {});
 }
 
 const PHOTOS = [
@@ -117,8 +118,11 @@ export function S08LightSection() {
   const quoteShineRef = useRef<HTMLSpanElement | null>(null);   // "shine" group
   const quoteHideRef  = useRef<HTMLSpanElement | null>(null);   // "hide" group
 
+  // Red guide lines (Phase 4)
+  const line2Ref = useRef<SVGLineElement | null>(null);
+  const line3Ref = useRef<SVGLineElement | null>(null);
+
   // Scroll-tick state (no re-render)
-  const audioUnlocked    = useRef(false);
   const lastRevealed     = useRef(0);
   const sparkApplied     = useRef(false);
   const hideApplied      = useRef(false);
@@ -127,15 +131,6 @@ export function S08LightSection() {
   const quoteShineApplied = useRef(false);
   const quoteHideApplied  = useRef(false);
   const paperPlayed      = useRef<boolean[]>(Array(NUM_LAYERS).fill(false));
-  const twCooldown       = useRef(0);
-
-  // ── Audio unlock ───────────────────────────────────────────────────────────
-  useEffect(() => {
-    const unlock = () => { audioUnlocked.current = true; };
-    const evts = ["scroll", "wheel", "pointerdown", "touchstart", "keydown"] as const;
-    evts.forEach(e => window.addEventListener(e, unlock, { once: true }));
-    return () => evts.forEach(e => window.removeEventListener(e, unlock));
-  }, []);
 
   // ── GSAP ───────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -157,19 +152,11 @@ export function S08LightSection() {
     const STEP = REVEAL_FRAC / NUM_LAYERS;
     const DUR  = STEP * 1.1;
 
-    const au = audioUnlocked;
     const pp = paperPlayed;
-    const cd = twCooldown;
 
-    const playPaper = () => { if (au.current) playClip("/assets/sounds/sfx/paper-place.mp3",    0.30); };
-    const playSpark = () => { if (au.current) playClip("/assets/sounds/sfx/sparkle.mp3",        0.35); };
-    const playKey   = () => {
-      if (!au.current) return;
-      const now = Date.now();
-      if (now - cd.current < 80) return;
-      cd.current = now;
-      playClip("/assets/sounds/sfx/typewriter-key.mp3", 0.25);
-    };
+    const playPaper = () => playSfx("paper");
+    const playSpark = () => playSfx("sparkle");
+    const playKey   = () => playSfx("typewriter");
 
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({
@@ -193,6 +180,14 @@ export function S08LightSection() {
                 pp.current[i] = false;
               }
             }
+
+            // ── Red guide lines: solid draw-in as the quote pin begins ───
+            const lineP = Math.min(
+              1,
+              Math.max(0, (p - LINE_REVEAL_START) / (LINE_REVEAL_END - LINE_REVEAL_START)),
+            );
+            line2Ref.current?.setAttribute("x2", String(lineP * 100));
+            line3Ref.current?.setAttribute("y2", String(lineP * 100));
 
             // ── PHASE 2: card typewriter ─────────────────────────────────
             let cTarget: number;
@@ -603,7 +598,11 @@ export function S08LightSection() {
             </div>
           </div>
 
-          {/* ── QUOTE TEXT — right viewport, centered (Phase 4 typewriter) ── */}
+          {/* ── TITLE + QUOTE — right viewport, centered (Phase 4 typewriter) ──
+              "The Spark" title sits directly above the quote, left-aligned,
+              matching the Cold section's typographic language. Box widened
+              to min(880px, 85vw) so the longest quote line (~812px at the
+              fixed 40px type) never wraps onto an extra line.             */}
           {/* Positioned to fill the 100vw right half of the 200vw track.     */}
           {/* When the track is fully scrolled left, this region is visible    */}
           {/* and the text sits perfectly centered on screen.                  */}
@@ -618,15 +617,61 @@ export function S08LightSection() {
               justifyContent: "center",
             }}
           >
-            <div style={{ textAlign: "center", maxWidth: "60vw" }}>
+            <div style={{ position: "relative", textAlign: "left", width: "min(880px, 85vw)" }}>
+              {/* Red guide lines — same solid, non-dashed technique as the Cold
+                  section; draw in as Phase 4 begins (see onUpdate above). */}
+              <div
+                aria-hidden="true"
+                style={{ position: "absolute", top: "58px", left: "-20vw", width: "20vw", height: "8px", pointerEvents: "none" }}
+              >
+                <svg viewBox="0 0 100 10" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+                  <line
+                    ref={line2Ref}
+                    x1="0" y1="5" x2="0" y2="5"
+                    stroke={RED_INK_COLOR}
+                    strokeWidth={RED_INK_STROKE_WIDTH}
+                    vectorEffect="non-scaling-stroke"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+              <div
+                aria-hidden="true"
+                style={{ position: "absolute", top: "100%", left: 0, width: "8px", height: "120px", pointerEvents: "none" }}
+              >
+                <svg viewBox="0 0 10 100" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+                  <line
+                    ref={line3Ref}
+                    x1="5" y1="0" x2="5" y2="0"
+                    stroke={RED_INK_COLOR}
+                    strokeWidth={RED_INK_STROKE_WIDTH}
+                    vectorEffect="non-scaling-stroke"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+
               <p
                 className="font-cormorant"
                 style={{
-                  fontWeight:    400,
-                  fontSize:      "clamp(26px, 3.75vw, 72px)",
-                  lineHeight:    1.45,
+                  fontStyle:      "italic",
+                  fontWeight:     600,
+                  fontSize:       "80px",
+                  lineHeight:     1.53,
+                  letterSpacing:  "-1.6px",
+                  color:          "#bd9969",
+                  textTransform:  "capitalize",
+                  whiteSpace:     "nowrap",
+                  margin:         "0 0 12px",
+                }}
+              >
+                The Spark
+              </p>
+              <p
+                className="cinematic-text"
+                style={{
                   letterSpacing: "-0.02em",
-                  color:         "#c9a76e",
+                  color:         "#bd9969",
                   margin:        0,
                 }}
               >

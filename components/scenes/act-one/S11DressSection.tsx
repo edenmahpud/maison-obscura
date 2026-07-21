@@ -872,15 +872,12 @@ export function S11DressSection() {
             {/* Left paragraph — types in first */}
             <p
               ref={text1Ref}
+              className="cinematic-text"
               style={{
                 position: "absolute",
                 left: "6.5%",
                 top: "11%",
                 width: "clamp(200px, 34vw, 580px)",
-                fontFamily: "var(--font-cormorant)",
-                fontWeight: 500,
-                fontSize: "clamp(18px, 2.8vw, 52px)",
-                lineHeight: 1.38,
                 color: "#bd9969",
                 opacity: 0.88,
                 margin: 0,
@@ -897,7 +894,7 @@ export function S11DressSection() {
                 bottom: "23%",
                 display: "flex",
                 alignItems: "center",
-                gap: "clamp(5px, 0.9vw, 18px)",
+                gap: "clamp(8px, 1.4vw, 26px)",
                 opacity: 0,
               }}
             >
@@ -905,10 +902,8 @@ export function S11DressSection() {
                 <span key={label} style={{ display: "contents" }}>
                   {i > 0 && <GoldDot />}
                   <span
+                    className="cinematic-text"
                     style={{
-                      fontFamily: "var(--font-cormorant)",
-                      fontWeight: 500,
-                      fontSize: "clamp(12px, 1.6vw, 30px)",
                       color: "#bd9969",
                       letterSpacing: "-0.01em",
                       whiteSpace: "nowrap",
@@ -921,10 +916,8 @@ export function S11DressSection() {
               <GoldDot />
               <span
                 ref={flashSpanRef}
+                className="cinematic-text"
                 style={{
-                  fontFamily: "var(--font-cormorant)",
-                  fontWeight: 500,
-                  fontSize: "clamp(12px, 1.6vw, 30px)",
                   color: "#bd9969",
                   letterSpacing: "-0.01em",
                   whiteSpace: "nowrap",
@@ -944,16 +937,13 @@ export function S11DressSection() {
               }}
             >
               <div
+                className="cinematic-text"
                 style={{
                   position: "relative",
-                  fontFamily: "var(--font-cormorant)",
-                  fontWeight: 500,
-                  fontSize: "clamp(18px, 3vw, 54px)",
                   color: "#ffffff",
                   opacity: 0.9,
                   letterSpacing: "-0.02em",
                   whiteSpace: "nowrap",
-                  lineHeight: 1.2,
                   textAlign: "right",
                 }}
               >

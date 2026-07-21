@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SectionOverlayTitle } from "@/components/effects/SectionOverlayTitle";
+import { duckMusic, restoreMusic } from "@/lib/audio";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -99,6 +100,10 @@ export function S04America1950s() {
   // Commercial 1 — autoplay, sound on first gesture
   const tvVideoRef    = useRef<HTMLVideoElement | null>(null);
   const tvUnlockedRef = useRef(false);
+  // True only while this section is the pinned/active one — the TV commercial
+  // must not unmute (and duck the site-wide music) from a gesture made while
+  // the user is somewhere else entirely, e.g. still on the opening flash.
+  const sectionActiveRef = useRef(false);
 
   // Commercial 2 — autoplay muted; click toggles sound (not play/pause)
   const c2VideoRef    = useRef<HTMLVideoElement | null>(null);
@@ -109,11 +114,13 @@ export function S04America1950s() {
   useEffect(() => {
     const unlock = () => {
       if (tvUnlockedRef.current) return;
+      if (!sectionActiveRef.current) return;
       const v = tvVideoRef.current;
       if (!v) return;
       tvUnlockedRef.current = true;
       v.muted  = false;
       v.volume = 0.55;
+      duckMusic("video:tv");
       if (v.paused) v.play().catch(() => {});
     };
     window.addEventListener("pointerdown", unlock);
@@ -155,24 +162,35 @@ export function S04America1950s() {
         end: `+=${TOTAL_SCROLL}`,
         pin: true,
         scrub: 1.2,
+        onEnter: () => {
+          sectionActiveRef.current = true;
+        },
         onLeave: () => {
+          sectionActiveRef.current = false;
           tvVideoRef.current?.pause();
+          restoreMusic("video:tv");
           const c2 = c2VideoRef.current;
           if (c2) {
             c2.pause();
             c2.muted = true;
             c2UnmutedRef.current = false;
             setC2Unmuted(false);
+            restoreMusic("video:c2");
           }
         },
         onEnterBack: () => {
+          sectionActiveRef.current = true;
           tvVideoRef.current?.play().catch(() => {});
+          if (tvUnlockedRef.current) duckMusic("video:tv");
           // commercial2 resumes muted — user must click again for sound
           const c2 = c2VideoRef.current;
           if (c2) {
             c2.muted = true;
             c2.play().catch(() => {});
           }
+        },
+        onLeaveBack: () => {
+          sectionActiveRef.current = false;
         },
         onUpdate: (self) => {
           const p    = self.progress;
@@ -264,6 +282,7 @@ export function S04America1950s() {
               c2.muted = true;
               c2UnmutedRef.current = false;
               setC2Unmuted(false);
+              restoreMusic("video:c2");
             } else if (c2ScreenX >= -600 && c2.paused && crossFadeP > 0.1) {
               // Resume muted when scrolled back into view
               c2.play().catch(() => {});
@@ -286,7 +305,12 @@ export function S04America1950s() {
     c2UnmutedRef.current = newUnmuted;
     setC2Unmuted(newUnmuted);
     v.muted = !newUnmuted;
-    if (newUnmuted) v.volume = 0.6;
+    if (newUnmuted) {
+      v.volume = 0.6;
+      duckMusic("video:c2");
+    } else {
+      restoreMusic("video:c2");
+    }
   };
 
   return (

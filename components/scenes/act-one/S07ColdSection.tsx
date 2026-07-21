@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { RED_INK_COLOR, RED_INK_STROKE_WIDTH } from "@/components/effects/redInk";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -15,7 +16,6 @@ function vw(px: number): string {
 }
 
 // ── Red investigation oval drawn around "wardrobes." ─────────────────────────
-const OVAL_COLOR = "#C1001A";
 const OVAL_PATH =
   "M 95 16 C 96 3 78 0 62 1 C 46 2 27 -1 13 5 C -1 11 -2 18 2 25 " +
   "C 6 32 15 38 31 39 C 47 40 66 40 81 38 C 96 36 100 29 99 22 " +
@@ -25,10 +25,13 @@ const OVAL_PATH =
 // top:0 instead of the original top:115px, so all subsequent elements must
 // match the same relative gap they had in the Figma design.
 const Y = {
-  quote: 605,      // was 720  (720 − 115 = 605; preserves 88px gap below sad9)
+  title: 616,      // was 731  (731 − 115 = 616; Figma node 1012:3)
+  quote: 738,      // was 853  (853 − 115 = 738; Figma node 801:768)
   label: 1044,     // was 1159 (1159 − 115)
   video: 1110.59,  // was 1225.59
   card:  1581.03,  // was 1696.03
+  line2: 679,      // was 794  (794 − 115 = 679; Figma node 1080:82, horizontal guide)
+  line3: 858,      // was 973  (973 − 115 = 858; Figma node 1080:84, vertical guide)
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,12 +47,15 @@ export function S07ColdSection() {
   // Starts hidden; revealed when S07's top reaches viewport top.
   const sad9DestRef  = useRef<HTMLDivElement | null>(null);
 
+  const titleRef     = useRef<HTMLDivElement | null>(null);
   const quoteRef     = useRef<HTMLDivElement | null>(null);
   const labelRef     = useRef<HTMLDivElement | null>(null);
   const videoWrapRef = useRef<HTMLDivElement | null>(null);
   const cardRef      = useRef<HTMLDivElement | null>(null);
   const videoRef     = useRef<HTMLVideoElement | null>(null);
   const ovalRef      = useRef<SVGPathElement | null>(null);
+  const line2Ref     = useRef<SVGLineElement | null>(null);
+  const line3Ref     = useRef<SVGLineElement | null>(null);
 
   // ── Sad9 relay: S06 bridge → fixed overlay → S07 dest ────────────────────
   useEffect(() => {
@@ -96,7 +102,7 @@ export function S07ColdSection() {
   // used for centering (margin:auto — no translateX involved).
   useEffect(() => {
     const section = sectionRef.current;
-    const els = [quoteRef, labelRef, videoWrapRef, cardRef]
+    const els = [titleRef, quoteRef, labelRef, videoWrapRef, cardRef]
       .map(r => r.current)
       .filter((el): el is HTMLDivElement => el !== null);
     if (!section || els.length === 0) return;
@@ -165,6 +171,39 @@ export function S07ColdSection() {
         },
       });
     });
+
+    return () => ctx.revert();
+  }, []);
+
+  // ── Red guide lines: progressive scroll-driven draw, staggered ───────────
+  // Investigation-board feel — the vertical guide draws in first as the
+  // section enters, the horizontal guide follows shortly after. Neither
+  // appears all at once; both finish well before the "wardrobes." oval.
+  // Grows the line's own end coordinate (not stroke-dasharray) so the stroke
+  // is always fully solid — no dashed/segmented appearance at any point.
+  useEffect(() => {
+    const section = sectionRef.current;
+    const line2   = line2Ref.current;
+    const line3   = line3Ref.current;
+    if (!section || !line2 || !line3) return;
+
+    line2.setAttribute("x2", "0");
+    line3.setAttribute("y2", "0");
+    line2.style.visibility = "visible";
+    line3.style.visibility = "visible";
+
+    const ctx = gsap.context(() => {
+      gsap.to(line3, {
+        attr: { y2: 100 },
+        ease: "none",
+        scrollTrigger: { trigger: section, start: "top 85%", end: "top 45%", scrub: 1 },
+      });
+      gsap.to(line2, {
+        attr: { x2: 100 },
+        ease: "none",
+        scrollTrigger: { trigger: section, start: "top 65%", end: "top 20%", scrub: 1 },
+      });
+    }, section);
 
     return () => ctx.revert();
   }, []);
@@ -253,9 +292,98 @@ export function S07ColdSection() {
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          QUOTE — centred, 88px below sad9.
-          margin:auto centering so the layout box stays within 100vw.
-          Font: Cormorant Garamond, clamp(28px, 3.6vw, 68px).
+          TITLE "The Cold War" — Figma node 1012:3: left 496px / width 386px
+          on the 1920-wide canvas. Sits directly above the quote (title box
+          bottom 616+122=738 meets quote box top 738 exactly — no extra gap
+          needed beyond each box's own line-height padding).
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div
+        ref={titleRef}
+        style={{
+          position: "absolute",
+          top: `${Y.title}px`,
+          left: vw(496),
+          width: vw(386),
+          zIndex: 3,
+        }}
+      >
+        <p
+          className="font-cormorant"
+          style={{
+            fontStyle: "italic",
+            fontWeight: 600,
+            fontSize: "80px",
+            lineHeight: 1.53,
+            letterSpacing: "-1.6px",
+            color: "#bd9969",
+            textTransform: "capitalize",
+            whiteSpace: "nowrap",
+            margin: 0,
+          }}
+        >
+          The Cold War
+        </p>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          RED GUIDE LINES — Figma nodes 1080:82 (horizontal) / 1080:84 (vertical).
+          Investigation-board threads; drawn progressively on scroll (see the
+          "Red guide lines" ScrollTrigger effect above). Third Figma line node
+          (1012:29) sits at x=3537 — entirely outside the 1920px frame — so it
+          isn't part of this section's visible content and is left out.
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          top: `${Y.line2}px`,
+          left: vw(-64),
+          width: vw(535),
+          height: "8px",
+          zIndex: 3,
+          pointerEvents: "none",
+        }}
+      >
+        <svg viewBox="0 0 100 10" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+          <line
+            ref={line2Ref}
+            x1="0" y1="5" x2="0" y2="5"
+            stroke={RED_INK_COLOR}
+            strokeWidth={RED_INK_STROKE_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            strokeLinecap="round"
+            style={{ visibility: "hidden" }}
+          />
+        </svg>
+      </div>
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          top: `${Y.line3}px`,
+          left: vw(408),
+          width: "8px",
+          height: "449px",
+          zIndex: 3,
+          pointerEvents: "none",
+        }}
+      >
+        <svg viewBox="0 0 10 100" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+          <line
+            ref={line3Ref}
+            x1="5" y1="0" x2="5" y2="0"
+            stroke={RED_INK_COLOR}
+            strokeWidth={RED_INK_STROKE_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            strokeLinecap="round"
+            style={{ visibility: "hidden" }}
+          />
+        </svg>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          QUOTE — Figma node 801:768: left 406px / width 929px on the 1920-wide
+          canvas, left-aligned (no text-align:center in the source design).
           "wardrobes." oval is scroll-drawn by GSAP ScrollTrigger.
       ══════════════════════════════════════════════════════════════════════ */}
       <div
@@ -263,21 +391,20 @@ export function S07ColdSection() {
         style={{
           position: "absolute",
           top: `${Y.quote}px`,
-          left: 0,
-          right: 0,
-          margin: "0 auto",
-          width: "min(85vw, 1050px)",
-          textAlign: "center",
+          left: vw(406),
+          // Wide enough for the longer line ("It Entered Homes, Workplaces,
+          // Newspapers And Wardrobes.", ~911px at the fixed 40px type) to
+          // stay on one line without shrinking the font; min(...,90vw) keeps
+          // it from overflowing narrower viewports.
+          width: "min(970px, 90vw)",
+          textAlign: "left",
           zIndex: 3,
         }}
       >
         <p
-          className="font-cormorant"
+          className="cinematic-text"
           style={{
-            fontWeight: 400,
-            fontSize: "clamp(28px, 3.6vw, 68px)",
-            lineHeight: 1.48,
-            letterSpacing: "-0.02em",
+            letterSpacing: "-0.8px",
             color: "#bd9969",
             textTransform: "capitalize",
           }}
@@ -311,8 +438,9 @@ export function S07ColdSection() {
                 ref={ovalRef}
                 d={OVAL_PATH}
                 fill="none"
-                stroke={OVAL_COLOR}
-                strokeWidth={3.5}
+                stroke={RED_INK_COLOR}
+                strokeWidth={RED_INK_STROKE_WIDTH}
+                vectorEffect="non-scaling-stroke"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 pathLength="1"

@@ -161,6 +161,19 @@ body {
   }
 }
 
+/* ── Shared cinematic standalone-text style ───────────────────────────────────
+   One consistent typographic voice for standalone cinematic text blocks
+   (quotes, captions, closing lines) that sit directly in the layout — not
+   text baked into an image/card asset. Font-family/size/weight/line-height
+   are unified here; color, letter-spacing, and alignment stay per-instance.
+   ─────────────────────────────────────────────────────────────────────────── */
+.cinematic-text {
+  font-family: var(--font-cormorant-garamond), "Cormorant Garamond", serif;
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 130%;
+}
+
 /* ── Courier Prime direct class ───────────────────────────────────────────────
    Used by the notebook/paper card body text in S04America1950s.
    Uses the CSS variable set by next/font (courierPrime.variable on <html>).

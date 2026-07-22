@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+
 type S02TheQuestionProps = {
   progress: number;
 };
@@ -6,47 +10,123 @@ function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
 }
 
+// ── Timing constants ──────────────────────────────────────────────────────────
+// REVEAL_END at 0.12 gives ~36vh of blur-to-sharp scroll travel.
+const REVEAL_START   = 0.01;
+const REVEAL_END     = 0.12;
+const FADE_OUT_START = 0.50;
+const FADE_OUT_END   = 0.76;
+
+// Volume for the video once audio is unlocked by a user gesture.
+const VIDEO_VOLUME = 0.6;
+
+// Events that count as a "first interaction" and unlock browser audio.
+const UNLOCK_EVENTS = ["scroll", "wheel", "pointerdown", "touchstart", "keydown"];
+
 export function S02TheQuestion({ progress }: S02TheQuestionProps) {
-  const revealStart = 0.08;
-  const revealEnd = 0.28;
-  const reveal = clamp01((progress - revealStart) / (revealEnd - revealStart));
-  const fadeOutStart = 0.50;
-  const fadeOutEnd = 0.76;
-  const fadeOut = clamp01((progress - fadeOutStart) / (fadeOutEnd - fadeOutStart));
-  const sceneOpacity = reveal * (1 - fadeOut);
-  const pullIn = clamp01((progress - 0.48) / 0.28);
+  const videoRef    = useRef<HTMLVideoElement>(null);
+  const unlockedRef = useRef(false);
+
+  const reveal         = clamp01((progress - REVEAL_START)   / (REVEAL_END   - REVEAL_START));
+  const fadeOut        = clamp01((progress - FADE_OUT_START) / (FADE_OUT_END - FADE_OUT_START));
+  const sectionOpacity = reveal * (1 - fadeOut);
+
+  // ── Blur-to-sharp reveal on the video ────────────────────────────────────────
+  // Emerges from the flash/blur of the Discover section.
+  // At reveal=0: blur 14px, 1.5× brightness, 1.06× scale.
+  // At reveal=1: sharp, natural, settled.
+  const revealBlur   = 14 * (1 - reveal);
+  const revealBright = 1 + 0.5  * (1 - reveal);   // 1.5 → 1.0
+  const revealScale  = 1 + 0.06 * (1 - reveal);   // 1.06 → 1.0
+  const videoFilter  = reveal < 0.99
+    ? `blur(${revealBlur.toFixed(1)}px) brightness(${revealBright.toFixed(3)})`
+    : undefined;
+
+  const shouldPlay = progress >= REVEAL_START && progress < FADE_OUT_END;
+
+  // ── Audio unlock — unmute on the first user interaction ──────────────────────
+  // Video starts muted (required for autoplay). The first scroll/click/key event
+  // is a trusted gesture that allows audio. We then flip muted=false and set
+  // a comfortable volume. Pattern mirrors S04's TV sound unlock.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const unlock = () => {
+      if (unlockedRef.current) return;
+      unlockedRef.current = true;
+      video.muted  = false;
+      video.volume = VIDEO_VOLUME;
+      UNLOCK_EVENTS.forEach(t => window.removeEventListener(t, unlock));
+    };
+
+    UNLOCK_EVENTS.forEach(t => window.addEventListener(t, unlock, { passive: true }));
+    return () => UNLOCK_EVENTS.forEach(t => window.removeEventListener(t, unlock));
+  }, []);
+
+  // ── Play / pause based on scroll visibility ───────────────────────────────────
+  // Does NOT restart on every scroll tick — only fires when shouldPlay changes.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (shouldPlay) { video.play().catch(() => {}); }
+    else            { video.pause(); }
+  }, [shouldPlay]);
 
   return (
     <section
-      aria-label="S02 The Question"
-      className="absolute inset-0 flex items-center justify-center overflow-hidden px-6"
-      style={{
-        opacity: sceneOpacity,
-        transform: `translateY(${(1 - reveal) * 18 - fadeOut * 16}px) scale(${1 + pullIn * 0.24})`,
-        filter: `blur(${fadeOut * 7}px)`,
-      }}
+      aria-label="S02 Video Section"
+      className="absolute inset-0 flex items-center justify-center overflow-hidden"
+      style={{ opacity: sectionOpacity }}
     >
-      <div className="absolute inset-0 bg-[#050505]" />
+      {/* ── bg.start.png — archival background, full-viewport cover ───────────── */}
       <div
-        className="absolute inset-0 bg-center bg-cover"
+        aria-hidden="true"
         style={{
-          opacity: 0.12 + fadeOut * 0.14,
-          backgroundImage: "url('/assets/S01-photograph/women-hiding-hero.jpg')",
-          filter: `blur(${11 + fadeOut * 8}px) grayscale(1) sepia(0.16) contrast(${0.7 - fadeOut * 0.12}) brightness(${0.48 - fadeOut * 0.12})`,
-          transform: `scale(${1.08 + pullIn * 0.22})`,
+          position: "absolute", inset: 0,
+          zIndex: 0,
+          backgroundImage: "url('/assets/start/bg.start.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
         }}
       />
-      <div className="absolute inset-0 bg-[radial-gradient(95%_80%_at_52%_44%,rgba(188,182,169,0.12)_0%,rgba(42,40,37,0.28)_42%,rgba(8,8,8,0.86)_100%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(182deg,rgba(210,203,190,0.08)_0%,rgba(15,15,15,0.44)_52%,rgba(4,4,4,0.8)_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(140%_110%_at_50%_50%,rgba(0,0,0,0)_55%,rgba(0,0,0,0.62)_100%)]" />
-      <div aria-hidden="true" className="mo-archival-grain" style={{ zIndex: 6 }} />
 
-      <p
-        className="font-cormorant italic relative z-10 w-max max-w-[90vw] whitespace-nowrap text-center text-[clamp(3.5rem,8vw,9rem)] leading-[1.2] tracking-[0.01em] text-zinc-100/92"
-        style={{ filter: `blur(${fadeOut * 6}px)` }}
-      >
-        What happened here?
-      </p>
+      {/* ── Dark overlay — subdues background to ~35% visibility ─────────────── */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute", inset: 0,
+          zIndex: 1,
+          background: "rgba(8, 8, 8, 0.65)",
+        }}
+      />
+
+      {/* Film grain */}
+      <div aria-hidden="true" className="mo-archival-grain" style={{ zIndex: 2 }} />
+
+      {/* ── Video — centered, blur-to-sharp cinematic reveal ─────────────────────
+          Width:  min(70vw, 1100px)  — adjust first value to resize.
+          Height: capped at 72vh.
+          objectFit: contain — never stretches or crops.
+          filter + transform driven by reveal (0→1) for the blur-in transition.
+          Starts muted; unmuted on first user gesture via the unlock useEffect.  */}
+      <video
+        ref={videoRef}
+        src="/assets/start/start2.mp4"
+        playsInline
+        muted
+        loop
+        style={{
+          position: "relative",
+          zIndex: 10,
+          width: "min(70vw, 1100px)",
+          maxHeight: "72vh",
+          objectFit: "contain",
+          display: "block",
+          filter: videoFilter,
+          transform: `scale(${revealScale.toFixed(4)})`,
+        }}
+      />
     </section>
   );
 }

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #050505;
+  --background: #181818;
   --foreground: #e7e5e4;
 }
 
@@ -15,6 +15,7 @@
   --font-josefin: var(--font-josefin-sans);            /* font-josefin  — labels, body, UI */
   --font-script: var(--font-great-vibes);              /* font-script   — large connected section titles */
   --font-courier: var(--font-courier-prime);           /* font-courier  — typewriter body text in collage cards */
+  --font-libre: var(--font-libre-baskerville);         /* font-libre    — archival banner titles (e.g. S11 "The Fabric") */
 }
 
 body {
@@ -159,6 +160,19 @@ body {
   .mo-flash {
     animation: none;
   }
+}
+
+/* ── Shared cinematic standalone-text style ───────────────────────────────────
+   One consistent typographic voice for standalone cinematic text blocks
+   (quotes, captions, closing lines) that sit directly in the layout — not
+   text baked into an image/card asset. Font-family/size/weight/line-height
+   are unified here; color, letter-spacing, and alignment stay per-instance.
+   ─────────────────────────────────────────────────────────────────────────── */
+.cinematic-text {
+  font-family: var(--font-cormorant-garamond), "Cormorant Garamond", serif;
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 130%;
 }
 
 /* ── Courier Prime direct class ───────────────────────────────────────────────

@@ -8,6 +8,18 @@ import { S02TheQuestion } from "./S02TheQuestion";
 import { S04America1950s } from "./S04America1950s";
 import { S05Transition } from "./S05Transition";
 import { S06SadSection } from "./S06SadSection";
+import { S07ColdSection } from "./S07ColdSection";
+import { S08LightSection } from "./S08LightSection";
+import { S09StarSection } from "./S09StarSection";
+import { S10PlaceSection } from "./S10PlaceSection";
+import { S11DressSection } from "./S11DressSection";
+import { S12InvestigationBoard } from "./S12InvestigationBoard";
+import { S12WantedTransition } from "./S12WantedTransition";
+import { FBISection } from "./FBISection";
+import { ArrestSection } from "./ArrestSection";
+import { ReverseTunnelSection } from "./ReverseTunnelSection";
+import { DesignModePanel } from "../../dev/DesignModePanel";
+import { initAudioManager, duckMusic, restoreMusic } from "@/lib/audio";
 
 // ── SOUND CONTROLS ────────────────────────────────────────────────────────────
 // Asset path served from /public. Edit here to swap the audio file.
@@ -25,7 +37,7 @@ const SOUND_FADE_AT = 0.45;
 const SOUND_FADE_MS = 900;
 
 // ── DEBUG — set to false once sound is confirmed working ─────────────────────
-const DEBUG_SOUND = true;
+const DEBUG_SOUND = false;
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── SECTION SIZING ────────────────────────────────────────────────────────────
@@ -95,6 +107,11 @@ export function ActOnePrototype() {
   const progressRef = useRef(0);       // stable ref for use inside event callbacks
   const playStartTimeRef = useRef(0);  // timestamp when play() succeeded
 
+  // Mount the global AudioManager (background music + SFX + ducking) once.
+  useEffect(() => {
+    return initAudioManager();
+  }, []);
+
   // Initialize audio on mount and attach unlock listeners
   useEffect(() => {
     log("Creating Audio object from:", AUDIO_SRC);
@@ -136,6 +153,8 @@ export function ActOnePrototype() {
         .then(() => {
           playStartTimeRef.current = performance.now();
           log("→ play() succeeded ✓, volume:", audio.volume);
+          // Duck background music while the opening flash sound is prominent.
+          duckMusic("flash");
         })
         .catch((err) => {
           console.error("[Sound] → play() FAILED:", err);
@@ -152,6 +171,7 @@ export function ActOnePrototype() {
     return () => {
       audio.pause();
       audioRef.current = null;
+      restoreMusic("flash");
       window.removeEventListener("pointerdown", tryPlay);
       window.removeEventListener("keydown", tryPlay);
       window.removeEventListener("wheel", tryPlay);
@@ -196,6 +216,7 @@ export function ActOnePrototype() {
             audioRef.current.volume = AUDIO_VOLUME; // restore for potential replay
           }
           isFadingRef.current = false;
+          restoreMusic("flash");
           log("Fade-out complete, audio paused");
         }
       };
@@ -320,10 +341,10 @@ export function ActOnePrototype() {
   }, []);
 
   return (
-    <div className="relative bg-[#050505]">
+    <div className="relative" style={{ background: "#181818" }}>
       <FlashIntro />
-      <section ref={introRef} className="relative min-h-[700vh] bg-black">
-        <div className="sticky top-0 h-screen overflow-hidden bg-[#050505]">
+      <section ref={introRef} className="relative min-h-[700vh]" style={{ background: "#181818" }}>
+        <div className="sticky top-0 h-screen overflow-hidden" style={{ background: "#181818" }}>
           <S02TheQuestion progress={introProgress} />
           {/* Tunnel layer — z-5, above S02 (z-auto) */}
           <div
@@ -387,7 +408,7 @@ export function ActOnePrototype() {
           <div
             ref={transitionOverlayRef}
             aria-hidden="true"
-            style={{ position: "absolute", inset: 0, zIndex: 15, background: "#FCF1DA", opacity: 0, pointerEvents: "none" }}
+            style={{ position: "absolute", inset: 0, zIndex: 15, background: "#050505", opacity: 0, pointerEvents: "none" }}
           />
 
           {/* Warm exit overlay — z-20, fades in at end of tunnel scroll.      */}
@@ -403,6 +424,17 @@ export function ActOnePrototype() {
       <S04America1950s />
       <S05Transition />
       <S06SadSection />
+      <S07ColdSection />
+      <S08LightSection />
+      <S09StarSection />
+      <S10PlaceSection />
+      <S11DressSection />
+      <S12InvestigationBoard />
+      <S12WantedTransition />
+      <FBISection />
+      <ArrestSection />
+      <ReverseTunnelSection />
+      {process.env.NODE_ENV !== "production" && <DesignModePanel />}
 
       {/* ── DEBUG TEST BUTTON — remove when sound is confirmed working ───────
           Click this to bypass scroll and play the sound directly.

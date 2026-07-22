@@ -5,6 +5,7 @@ import type { Group as ThreeGroup, PointLight as ThreePointLight, MeshStandardMa
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { RED_INK_COLOR, RED_INK_STROKE_WIDTH } from "@/components/effects/redInk";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -19,6 +20,8 @@ const P = {
   S2_GONE:     0.50,   // state 2 gone / canvas B faded
   S3_OUT:      0.68,   // state 3 starts leaving
   S3_GONE:     0.74,   // state 3 gone / canvas C dims for state 4
+  FLASH_BOOST_START: 0.74,  // last page begins — flash escalation ramps in
+  FLASH_BOOST_END:   0.80,  // full "washing out" intensity reached
   EXIT_START:  0.94,   // exit overlay begins
 };
 
@@ -26,13 +29,28 @@ function lerp01(p: number, lo: number, hi: number): number {
   return Math.min(1, Math.max(0, (p - lo) / (hi - lo)));
 }
 
+// ── Figma → percentage helpers (node 860:117 frame is 1920×1080) ─────────────
+const FRAME_W = 1920;
+const FRAME_H = 1080;
+function pctW(px: number): number { return (px / FRAME_W) * 100; }
+function pctH(px: number): number { return (px / FRAME_H) * 100; }
+function dvw(px: number): string { return `${pctW(px).toFixed(3)}%`; }
+function dvh(px: number): string { return `${pctH(px).toFixed(3)}%`; }
+
 // ── Three.js dress viewer (lazy-loaded per canvas) ────────────────────────────
 type FlashMode = "standard" | "subtle" | "intense";
+
+// Mutable, live-read boost for the last page's "washing out" flash escalation.
+// Only the state-4 (last page) window ever drives this above 0 — see
+// flashBoostRef in S11DressSection — so state 3, which shares this same
+// canvas/mode="intense" instance, is completely unaffected.
+type Boost = { value: number };
 
 async function mountViewer(
   canvas: HTMLCanvasElement,
   src: string,
   mode: FlashMode = "standard",
+  boostObj?: Boost,
 ): Promise<() => void> {
   const [THREE, { GLTFLoader }] = await Promise.all([
     import("three"),
@@ -181,26 +199,37 @@ async function mountViewer(
       root.position.y = baseY + Math.sin(Date.now() / 2800) * 0.045;
     }
 
+    // Last-page "washing out" escalation — 0 everywhere except the state-4
+    // scroll window (see flashBoostRef in S11DressSection). Firing
+    // frequency, intensity, and emissive blowout all scale with it.
+    const boost = boostObj?.value ?? 0;
+
     if (flashLights.length > 0) {
       const nowSec = Date.now() / 1000;
+      // Much more aggressive escalation than a first pass: firing interval
+      // shrinks to under a third of baseline at full boost, so many more
+      // flashes overlap instead of firing one at a time.
+      const boostedMin = minInterval / (1 + boost * 3.5);
+      const boostedMax = maxInterval / (1 + boost * 3.5);
       let peakPhase = 0;
       flashLights.forEach((fl, i) => {
         if (nowSec >= fl.nextFire) {
           fl.phase = 1.0;
-          fl.nextFire = nowSec + minInterval + Math.random() * (maxInterval - minInterval);
+          fl.nextFire = nowSec + boostedMin + Math.random() * (boostedMax - boostedMin);
           // Intense mode: sometimes fire an adjacent light at the same moment
-          if (mode === "intense" && Math.random() > 0.55 && i + 1 < flashLights.length) {
+          // — boosted so it's the norm rather than the exception once boosted.
+          if (mode === "intense" && Math.random() > (0.55 - boost * 0.35) && i + 1 < flashLights.length) {
             const next = flashLights[i + 1];
             next.phase = 0.65 + Math.random() * 0.35;
-            next.nextFire = nowSec + minInterval + Math.random() * (maxInterval - minInterval);
+            next.nextFire = nowSec + boostedMin + Math.random() * (boostedMax - boostedMin);
           }
         }
         fl.phase *= decay;
-        fl.light.intensity = fl.phase * fl.maxIntensity;
+        fl.light.intensity = fl.phase * fl.maxIntensity * (1 + boost * 4);
         if (fl.phase > peakPhase) peakPhase = fl.phase;
       });
       // Smooth ambient pulse follows the brightest active flash
-      ambientBoost += (peakPhase * ambientPulse - ambientBoost) * 0.12;
+      ambientBoost += (peakPhase * ambientPulse * (1 + boost * 3.5) - ambientBoost) * 0.12;
       baseAmbient.intensity = BASE_AMBIENT + ambientBoost;
     }
 
@@ -241,20 +270,31 @@ async function mountViewer(
         1.50 + Math.sin(t * 2.10) * 0.28,
       );
 
-      orb1.intensity = 7.0 * (0.50 + 0.50 * Math.sin(t * 2.30));
-      orb2.intensity = 6.0 * (0.45 + 0.55 * Math.sin(t * 3.10 + 1.2));
-      orb3.intensity = 5.2 * (0.48 + 0.52 * Math.sin(t * 1.82 + 2.4));
+      const orbBoost = 1 + boost * 3;
+      orb1.intensity = 7.0 * (0.50 + 0.50 * Math.sin(t * 2.30)) * orbBoost;
+      orb2.intensity = 6.0 * (0.45 + 0.55 * Math.sin(t * 3.10 + 1.2)) * orbBoost;
+      orb3.intensity = 5.2 * (0.48 + 0.52 * Math.sin(t * 1.82 + 2.4)) * orbBoost;
 
       // Multi-frequency emissive pulse — different sine periods so the glow
-      // never settles into a regular beat; random jitter adds grain
+      // never settles into a regular beat; random jitter adds grain.
+      // On the last page (boost > 0), amplitude and ceiling both rise well
+      // past 1.0 — under this renderer's default (no) tone mapping that
+      // clips to blown-out white, which is exactly the "washed out, barely
+      // visible" look the last page calls for, not a lighting bug. The
+      // `boost * 1.0` floor keeps the material biased toward blown-out even
+      // between peaks, without pinning it there permanently — an earlier,
+      // more aggressive pass here (combined with the 2D flash canvas) locked
+      // the whole page at pure white with no variation, which read as a
+      // stuck frame rather than repeated flashes.
       if (reflectiveMats.length > 0) {
         const e =
           0.14 +
-          Math.sin(t * 2.10) * 0.24 +
-          Math.sin(t * 3.80 + 1.1) * 0.18 +
-          Math.sin(t * 7.50 + 2.3) * 0.12 +
-          Math.random() * 0.08;
-        const emissive = Math.max(0, Math.min(0.80, e));
+          Math.sin(t * 2.10) * 0.24 * (1 + boost * 1.8) +
+          Math.sin(t * 3.80 + 1.1) * 0.18 * (1 + boost * 1.8) +
+          Math.sin(t * 7.50 + 2.3) * 0.12 * (1 + boost * 1.8) +
+          Math.random() * 0.08 +
+          boost * 1.0;
+        const emissive = Math.max(0, Math.min(0.80 + boost * 2.8, e));
         reflectiveMats.forEach((mat) => { mat.emissiveIntensity = emissive; });
       }
     }
@@ -385,29 +425,17 @@ function makeHandCirclePath(cx: number, cy: number, rx: number, ry: number): str
   ].join(" ");
 }
 
-// ── Gold dot separator ────────────────────────────────────────────────────────
-function GoldDot() {
-  return (
-    <span
-      aria-hidden="true"
-      style={{
-        display: "inline-block",
-        width: 5,
-        height: 5,
-        borderRadius: "50%",
-        background: "#bd9969",
-        flexShrink: 0,
-        alignSelf: "center",
-      }}
-    />
-  );
-}
-
 // ── Flash reflection canvas — soft radial light bursts, no geometric shapes ───
 // Each "flare" is a radial gradient circle drawn with mix-blend-mode screen so
 // it adds light to the 3D render. The effect reads as flash reflecting off textile:
 // warm/cool photographic hotspots that bloom outward from the dress surface.
-function SparkleCanvas({ mode }: { mode: "subtle" | "intense" }) {
+//
+// `boostRef` (only ever passed for the mode="intense" instance, and only
+// non-zero during the last page — see flashBoostRef in S11DressSection)
+// escalates flare frequency/size/decay AND adds the periodic full-canvas
+// "mega flash" whiteout below — the effect that makes the dress nearly
+// disappear behind the flash on the final screen.
+function SparkleCanvas({ mode, boostRef }: { mode: "subtle" | "intense"; boostRef?: React.RefObject<{ value: number }> }) {
   const cvRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -444,18 +472,22 @@ function SparkleCanvas({ mode }: { mode: "subtle" | "intense" }) {
 
     const pool: Flare[] = [];
 
-    const spawn = (): Flare => ({
+    const spawn = (boost: number): Flare => ({
       xr:  gauss(0.50, mode === "subtle" ? 0.14 : 0.15),
       yr:  gauss(0.44, mode === "subtle" ? 0.25 : 0.27),
-      rad: mode === "subtle"
+      rad: (mode === "subtle"
         ? 20 + Math.random() * 60
-        : 35 + Math.random() * 130,
+        : 35 + Math.random() * 130) * (1 + boost * 2.2),
       phase: 1.0,
       decay: mode === "subtle"
         ? 0.88 + Math.random() * 0.05
-        : 0.88 + Math.random() * 0.06,
+        : 0.90 + Math.random() * 0.05 + boost * 0.04, // lingers longer when boosted, but still fades
       warm: Math.random() > 0.38,
     });
+
+    // Periodic full-canvas whiteout — only ever fires when boosted (state 4)
+    let megaPhase = 0;
+    let nextMega  = Date.now() + 1200;
 
     // Pure radial gradient — no lines, no shapes, just soft circular light bleed
     const drawFlare = (x: number, y: number, rad: number, alpha: number, warm: boolean) => {
@@ -496,24 +528,33 @@ function SparkleCanvas({ mode }: { mode: "subtle" | "intense" }) {
       const h   = cv.height;
       if (w === 0 || h === 0) return;
 
-      while (pool.length < MAX_POOL && now >= nextSpawn) {
-        pool.push(spawn());
-        nextSpawn = now + SPAWN_MS + Math.random() * SPAWN_MS * 0.8;
+      const boost = boostRef?.current?.value ?? 0;
+      // Many more, much denser flares at full boost. (Tuned back slightly
+      // from an earlier pass that stacked so many simultaneous "screen"
+      // layers the canvas locked permanently at pure white with zero
+      // temporal variation — that reads as a stuck frame, not a flash.)
+      const effMaxPool  = MAX_POOL + Math.round(boost * 55);
+      const effSpawnMs  = SPAWN_MS / (1 + boost * 3.2);
+
+      while (pool.length < effMaxPool && now >= nextSpawn) {
+        pool.push(spawn(boost));
+        nextSpawn = now + effSpawnMs + Math.random() * effSpawnMs * 0.8;
       }
 
       ctx.clearRect(0, 0, w, h);
 
       // Intense: large persistent bloom centred on the dress — fabric core never
-      // fully dims between individual flares; two overlapping pulses keep it alive
+      // fully dims between individual flares; two overlapping pulses keep it alive.
+      // Amplitude/radius scale with `boost` for the last page's overexposed look.
       if (mode === "intense") {
         const t  = now / 1000;
-        const pb = 0.09 + Math.sin(t * 1.85) * 0.052 + Math.sin(t * 3.20) * 0.030;
+        const pb = (0.09 + Math.sin(t * 1.85) * 0.052 + Math.sin(t * 3.20) * 0.030) * (1 + boost * 3.2);
         const cx = w * 0.50;
         const cy = h * 0.43;
-        const blm = ctx.createRadialGradient(cx, cy, 0, cx, cy, w * 0.32);
-        blm.addColorStop(0,    `rgba(255,255,245,${pb.toFixed(3)})`);
-        blm.addColorStop(0.40, `rgba(255,252,230,${(pb * 0.46).toFixed(3)})`);
-        blm.addColorStop(0.80, `rgba(255,248,205,${(pb * 0.13).toFixed(3)})`);
+        const blm = ctx.createRadialGradient(cx, cy, 0, cx, cy, w * (0.32 + boost * 0.30));
+        blm.addColorStop(0,    `rgba(255,255,245,${Math.min(1, pb).toFixed(3)})`);
+        blm.addColorStop(0.40, `rgba(255,252,230,${Math.min(1, pb * 0.46).toFixed(3)})`);
+        blm.addColorStop(0.80, `rgba(255,248,205,${Math.min(1, pb * 0.13).toFixed(3)})`);
         blm.addColorStop(1,    "rgba(255,244,170,0)");
         ctx.save();
         ctx.globalCompositeOperation = "screen";
@@ -528,6 +569,29 @@ function SparkleCanvas({ mode }: { mode: "subtle" | "intense" }) {
         if (f.phase < 0.008) { pool.splice(i, 1); continue; }
         drawFlare(f.xr * w, f.yr * h, f.rad, f.phase, f.warm);
       }
+
+      // Mega flash — periodic full-canvas whiteout, last page only (boost > 0).
+      // A real camera-flash overexposure: near-white "screen" wash that
+      // buries the dress and flares beneath it, firing far more often than
+      // baseline, then actually decaying back down between pulses — a small
+      // sustained haze (`boost * 0.16`) keeps the coat obscured at the low
+      // points too, but genuine peak-to-trough variation is what makes this
+      // read as repeated flashes rather than one frozen overexposed frame.
+      if (boost > 0.05) {
+        if (now >= nextMega) {
+          megaPhase = 1.0;
+          nextMega = now + (700 + Math.random() * 900) / (1 + boost * 3.2);
+        }
+        megaPhase *= 0.90;
+        const a = Math.min(1, boost * 0.16 + megaPhase * boost * 0.92);
+        if (a > 0.01) {
+          ctx.save();
+          ctx.globalCompositeOperation = "screen";
+          ctx.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`;
+          ctx.fillRect(0, 0, w, h);
+          ctx.restore();
+        }
+      }
     };
     tick();
 
@@ -536,7 +600,7 @@ function SparkleCanvas({ mode }: { mode: "subtle" | "intense" }) {
       cancelAnimationFrame(rafId);
       ro.disconnect();
     };
-  }, [mode]);
+  }, [mode, boostRef]);
 
   return (
     <canvas
@@ -587,6 +651,19 @@ export function S11DressSection() {
   const flashSpanRef  = useRef<HTMLSpanElement>(null);
   const circlePathRef = useRef<SVGPathElement>(null);
 
+  // Last-page flash escalation — 0 throughout states 1–3 (including state 3,
+  // which shares this exact canvas/SparkleCanvas instance), ramps to 1 once
+  // state 4 (the final screen) begins. See P.FLASH_BOOST_* below.
+  const flashBoostRef = useRef({ value: 0 });
+
+  // New state-4 elements — title, red guide lines, decorative squiggle
+  const lineTopRef    = useRef<HTMLDivElement>(null);
+  const lineLeftRef   = useRef<HTMLDivElement>(null);
+  const line3Ref      = useRef<HTMLDivElement>(null);
+  const line4Ref      = useRef<HTMLDivElement>(null);
+  const line5Ref      = useRef<HTMLDivElement>(null);
+  const squigglePathRef = useRef<SVGPathElement>(null);
+
   // ── Mount 3D viewers ──────────────────────────────────────────────────────
   useEffect(() => {
     let cleanA: (() => void) | null = null;
@@ -603,7 +680,7 @@ export function S11DressSection() {
         if (alive) cleanB = fn; else fn();
       });
     if (canvasCRef.current)
-      mountViewer(canvasCRef.current, "/assets/dress/3d3.glb", "intense").then((fn) => {
+      mountViewer(canvasCRef.current, "/assets/dress/3d3.glb", "intense", flashBoostRef.current).then((fn) => {
         if (alive) cleanC = fn; else fn();
       });
 
@@ -621,13 +698,18 @@ export function S11DressSection() {
     if (!section) return;
 
     // ── State 4 text ──────────────────────────────────────────────────────────
-    // Line breaks match user spec exactly:
-    //   line 1: "The coats were never only coats."
-    //   line 2: "Beneath the silk, the shimmer, and the perfect"
-    //   line 3: "silhouette, Maison Obscura built"
-    //   line 4: "a system of disappearance."
+    // Matches Figma node 860:121 exactly: 4 semantic paragraphs (each its own
+    // "\n"-forced break), and the paragraph width (528px @ 1920 reference,
+    // see text1Ref's width below) is Figma's own box width — at that width
+    // the second paragraph naturally wraps into 2 lines on its own, same as
+    // Figma's live render, giving 5 visual lines total:
+    //   1. "The coats were never only coats."
+    //   2. "Beneath the silk, the shimmer,"        ─┐ one paragraph,
+    //   3. "and the perfect silhouette,"            ─┘ wraps naturally
+    //   4. "Maison Obscura built"
+    //   5. "a system of disappearance."
     const TW1_TEXT =
-      "The coats were never only coats.\nBeneath the silk, the shimmer, and the perfect\nsilhouette, Maison Obscura built\na system of disappearance.";
+      "The coats were never only coats.\nBeneath the silk, the shimmer, and the perfect silhouette,\nMaison Obscura built\na system of disappearance.";
     // "Maison Obscura" occupies chars 92–105 (0-indexed, exclusive upper bound)
     const MO_START = 92;
     const MO_END   = 106;
@@ -756,6 +838,27 @@ export function S11DressSection() {
             circlePathRef.current.style.opacity = circT > 0.01 ? "1" : "0";
           }
 
+          // ── Decorative squiggle (Figma "Vector 22") — draws in with the circle ──
+          if (squigglePathRef.current) {
+            const sqT = lerp01(p, CIRC_S, CIRC_E);
+            squigglePathRef.current.style.strokeDashoffset = String(1 - sqT);
+            squigglePathRef.current.style.opacity = sqT > 0.01 ? "1" : "0";
+          }
+
+          // ── Red guide lines — draw in together with the content they annotate ──
+          const paraLineT  = lerp01(p, P.S3_GONE, TW1_END);
+          const rightLineT = lerp01(p, GOLD_IN_S, GOLD_IN_E);
+          if (lineTopRef.current)  lineTopRef.current.style.width  = `${(paraLineT * pctW(216)).toFixed(3)}%`;
+          if (lineLeftRef.current) lineLeftRef.current.style.height = `${(paraLineT * pctH(772)).toFixed(3)}%`;
+          if (line3Ref.current) line3Ref.current.style.width = `${(rightLineT * pctW(221)).toFixed(3)}%`;
+          if (line4Ref.current) line4Ref.current.style.width = `${(rightLineT * pctW(277)).toFixed(3)}%`;
+          if (line5Ref.current) line5Ref.current.style.width = `${(rightLineT * pctW(296)).toFixed(3)}%`;
+
+          // ── Last-page flash escalation — see mountViewer/SparkleCanvas ────
+          // Purely scroll-driven ramp (not a timer): 0 through states 1–3,
+          // reaching full "washing out" intensity shortly after state 4 begins.
+          flashBoostRef.current.value = lerp01(p, P.FLASH_BOOST_START, P.FLASH_BOOST_END);
+
           // ── Exit overlay ──────────────────────────────────────────────────
           if (exitRef.current)
             exitRef.current.style.opacity = String(lerp01(p, P.EXIT_START, 1));
@@ -817,6 +920,42 @@ export function S11DressSection() {
               src="/assets/dress/dress5.png"
               style={{ left: "50%", top: "36.9%", width: "44.3%", height: "60.6%" }}
             />
+
+            {/* ── "The Fabric" title — Figma node 860:72, frame 1920×1080 ────────
+                Paper banner (dress.png, node 1012:40): left=1502 top=135
+                w=334 h=131 → 78.229% / 12.500% / 17.396% / 12.130%.
+                Title text (node 1012:41): left=1561 top=178 → 81.302% / 16.481%,
+                same percentage-of-frame convention as the Photo elements above. */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                left: "78.229%", top: "12.500%",
+                width: "17.396%", height: "12.130%",
+                pointerEvents: "none",
+              }}
+            >
+              <Image src="/assets/dress/dress.png" alt="" fill sizes="20vw" style={{ objectFit: "contain", objectPosition: "bottom" }} />
+            </div>
+            <p
+              style={{
+                position: "absolute",
+                left: "81.302%", top: "16.481%",
+                margin: 0,
+                fontFamily: "var(--font-libre)",
+                fontWeight: 400,
+                fontSize: "clamp(14px, 2.083vw, 40px)",
+                lineHeight: 1.09,
+                letterSpacing: "-0.8px",
+                color: "#414141",
+                textTransform: "capitalize",
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
+              }}
+            >
+              the fabric
+            </p>
+
             <NoteCard
               dressImg="/assets/dress/dress1.png"
               layer="layer 1"
@@ -866,60 +1005,123 @@ export function S11DressSection() {
 
           {/* ════════════════════════════════════════════════════════════════
               STATE 4 — The Reveal   (3d3.glb, text above canvas at zIndex 10)
+              Figma node 860:117 ("section4") — the Dress section's last page.
           ════════════════════════════════════════════════════════════════ */}
           <div ref={s4Ref} style={{ position: "absolute", inset: 0, zIndex: 10, opacity: 0 }}>
 
-            {/* Left paragraph — types in first */}
+            {/* Title — "The Coats" · Figma node 1012:69 */}
+            <p
+              style={{
+                position: "absolute",
+                left: dvw(230), top: dvh(70),
+                margin: 0,
+                fontFamily: "var(--font-cormorant-garamond), \"Cormorant Garamond\", serif",
+                fontStyle: "italic",
+                fontWeight: 600,
+                fontSize: `clamp(32px, ${pctW(80).toFixed(3)}vw, 80px)`,
+                lineHeight: 1.3,
+                letterSpacing: "-1.6px",
+                color: "#bd9969",
+                opacity: 0.8,
+                textTransform: "capitalize",
+                whiteSpace: "nowrap",
+              }}
+            >
+              the coats
+            </p>
+
+            {/* Red guide line above the title · Figma "Line 2" (1012:72) */}
+            <div
+              ref={lineTopRef}
+              aria-hidden="true"
+              style={{
+                position: "absolute", left: 0, top: `calc(${dvh(122)} - ${RED_INK_STROKE_WIDTH / 2}px)`,
+                width: 0, height: `${RED_INK_STROKE_WIDTH}px`,
+                background: RED_INK_COLOR, pointerEvents: "none",
+              }}
+            />
+            {/* Red guide line down the left edge · Figma "Line 6" (1080:90) */}
+            <div
+              ref={lineLeftRef}
+              aria-hidden="true"
+              style={{
+                position: "absolute", top: dvh(471), left: `calc(${dvw(125)} - ${RED_INK_STROKE_WIDTH / 2}px)`,
+                width: `${RED_INK_STROKE_WIDTH}px`, height: 0,
+                background: RED_INK_COLOR, pointerEvents: "none",
+              }}
+            />
+
+            {/* Left paragraph — types in first · Figma node 860:121.
+                Figma's own box is 528px, but Chrome's metrics for this font/
+                weight render "The coats were never only coats." a few px
+                wider than that — at 528 it wraps into 6 lines, not 5.
+                560px is the measured (not guessed) width where all 4
+                semantic paragraphs land exactly as Figma shows them, with
+                the second one wrapping once on its own: 5 lines total.
+                fontSize scales by the SAME vw fraction as width (both derive
+                from pctW) so that wrap point holds at any viewport size. */}
             <p
               ref={text1Ref}
               className="cinematic-text"
               style={{
                 position: "absolute",
-                left: "6.5%",
-                top: "11%",
-                width: "clamp(200px, 34vw, 580px)",
+                left: dvw(125),
+                top: dvh(174),
+                width: `clamp(232px, ${pctW(560).toFixed(3)}vw, 560px)`,
+                fontSize: `clamp(18px, ${pctW(40).toFixed(3)}vw, 40px)`,
                 color: "#bd9969",
-                opacity: 0.88,
+                opacity: 0.8,
                 margin: 0,
                 letterSpacing: "-0.02em",
+                textTransform: "capitalize",
               }}
             />
 
-            {/* Gold line — "Three layers · One body · One flash" — lower right */}
+            {/* "Three layers / One body / One flash" — vertical stack, right-aligned
+                Figma node 860:122 ("Frame 106"): 80px italic semibold, gap 16px. */}
             <div
               ref={goldLineRef}
               style={{
                 position: "absolute",
-                right: "6%",
-                bottom: "23%",
+                left: `${(50 + pctW(560.5)).toFixed(3)}%`,
+                top: `${(50 + pctH(152)).toFixed(3)}%`,
+                transform: "translate(-50%, -50%)",
                 display: "flex",
-                alignItems: "center",
-                gap: "clamp(8px, 1.4vw, 26px)",
+                flexDirection: "column",
+                alignItems: "flex-end",
+                gap: "clamp(6px, 0.83vw, 16px)",
                 opacity: 0,
               }}
             >
-              {(["Three layers", "One body"] as const).map((label, i) => (
-                <span key={label} style={{ display: "contents" }}>
-                  {i > 0 && <GoldDot />}
-                  <span
-                    className="cinematic-text"
-                    style={{
-                      color: "#bd9969",
-                      letterSpacing: "-0.01em",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {label}
-                  </span>
+              {(["Three layers", "One body"] as const).map((label) => (
+                <span
+                  key={label}
+                  style={{
+                    fontFamily: "var(--font-cormorant-garamond), \"Cormorant Garamond\", serif",
+                    fontStyle: "italic",
+                    fontWeight: 600,
+                    fontSize: `clamp(24px, ${pctW(80).toFixed(3)}vw, 80px)`,
+                    lineHeight: 1.32,
+                    letterSpacing: "-1.6px",
+                    color: "#bd9969",
+                    opacity: 0.8,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {label}
                 </span>
               ))}
-              <GoldDot />
               <span
                 ref={flashSpanRef}
-                className="cinematic-text"
                 style={{
+                  fontFamily: "var(--font-cormorant-garamond), \"Cormorant Garamond\", serif",
+                  fontStyle: "italic",
+                  fontWeight: 600,
+                  fontSize: `clamp(24px, ${pctW(80).toFixed(3)}vw, 80px)`,
+                  lineHeight: 1.32,
+                  letterSpacing: "-1.6px",
                   color: "#bd9969",
-                  letterSpacing: "-0.01em",
+                  opacity: 0.8,
                   whiteSpace: "nowrap",
                 }}
               >
@@ -927,13 +1129,46 @@ export function S11DressSection() {
               </span>
             </div>
 
-            {/* White sentence — lower right, below gold line.
-                The investigation circle SVG is absolutely positioned inside. */}
+            {/* Red guide lines beside each row · Figma "Line 3/4/5" (1012:74/75/76) */}
+            <div ref={line3Ref} aria-hidden="true" style={{ position: "absolute", left: dvw(1718), top: `calc(${dvh(579)} - ${RED_INK_STROKE_WIDTH / 2}px)`, width: 0, height: `${RED_INK_STROKE_WIDTH}px`, background: RED_INK_COLOR, pointerEvents: "none" }} />
+            <div ref={line4Ref} aria-hidden="true" style={{ position: "absolute", left: dvw(1643), top: `calc(${dvh(702)} - ${RED_INK_STROKE_WIDTH / 2}px)`, width: 0, height: `${RED_INK_STROKE_WIDTH}px`, background: RED_INK_COLOR, pointerEvents: "none" }} />
+            <div ref={line5Ref} aria-hidden="true" style={{ position: "absolute", left: dvw(1643), top: `calc(${dvh(820)} - ${RED_INK_STROKE_WIDTH / 2}px)`, width: 0, height: `${RED_INK_STROKE_WIDTH}px`, background: RED_INK_COLOR, pointerEvents: "none" }} />
+
+            {/* Decorative hand-drawn squiggle · Figma "Vector 22" (860:128) */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute", left: dvw(1468.11), top: dvh(885.57),
+                width: dvw(383.046), height: dvh(79.554),
+                display: "flex", alignItems: "center", justifyContent: "center",
+                pointerEvents: "none",
+              }}
+            >
+              <div style={{ transform: "rotate(-90.31deg)", width: dvw(77.477), height: dvh(382.631) }}>
+                <svg viewBox="0 0 79.477 384.631" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+                  <path
+                    ref={squigglePathRef}
+                    pathLength="1"
+                    d="M52.9511 346.747C55.9402 342.823 63.3876 313.771 72.4961 271.415C76.0298 254.982 76.39 248.446 77.0645 224.053C77.7391 199.659 78.4706 157.508 78.477 128.29C78.4905 66.5808 75.1451 59.0434 72.0131 41.8982C69.7577 29.5522 66.9949 20.4421 64.3765 15.3773C58.3674 3.75463 46.9122 1.64021 37.8582 1.00672C31.7681 0.580611 24.087 20.5909 12.8449 58.7585C9.66018 69.5706 8.23821 81.6333 6.06353 112.866C3.88885 144.098 1.68066 194.468 1.13548 230.514C0.590302 266.561 1.77506 286.757 3.17882 300.589C6.72691 335.551 18.8525 357.402 27.3797 371.45C33.4747 377.67 39.6054 380.663 46.3047 382.31C49.9961 382.977 54.2796 383.299 58.693 383.631"
+                    stroke={RED_INK_COLOR}
+                    strokeWidth={RED_INK_STROKE_WIDTH}
+                    fill="none"
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                    style={{ strokeDasharray: "1", strokeDashoffset: "1", opacity: 0 }}
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* White sentence — lower right, below the layer stack.
+                The investigation circle SVG is absolutely positioned inside.
+                Figma node 860:120 (x=1247,y=900 → right≈4.64% / bottom≈11.76%). */}
             <div
               style={{
                 position: "absolute",
-                right: "6%",
-                bottom: "8%",
+                right: "4.64%",
+                bottom: "11.76%",
               }}
             >
               <div
@@ -1001,7 +1236,7 @@ export function S11DressSection() {
           {/* ── Canvas C — 3d3.glb (states 3 + 4) ───────────────────────── */}
           <div ref={wrapCRef} style={{ ...canvasWrap, opacity: 0 }}>
             <canvas ref={canvasCRef} style={{ width: "100%", height: "100%", display: "block" }} />
-            <SparkleCanvas mode="intense" />
+            <SparkleCanvas mode="intense" boostRef={flashBoostRef} />
           </div>
 
           {/* Film grain */}

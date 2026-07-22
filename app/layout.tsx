@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Cormorant_Garamond, Josefin_Sans, Great_Vibes, Courier_Prime } from "next/font/google";
+import { Geist, Geist_Mono, Cormorant_Garamond, Josefin_Sans, Great_Vibes, Courier_Prime, Libre_Baskerville } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -43,6 +43,13 @@ const courierPrime = Courier_Prime({
   weight: ["400", "700"],
 });
 
+// Archival serif for banner titles (e.g. S11 Dress "The Fabric")
+const libreBaskerville = Libre_Baskerville({
+  variable: "--font-libre-baskerville",
+  subsets: ["latin"],
+  weight: ["400", "700"],
+});
+
 export const metadata: Metadata = {
   title: "Maison Obscura",
   description:
@@ -57,7 +64,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} ${josefin.variable} ${scriptFont.variable} ${courierPrime.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} ${josefin.variable} ${scriptFont.variable} ${courierPrime.variable} ${libreBaskerville.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-black text-neutral-100">
         {children}

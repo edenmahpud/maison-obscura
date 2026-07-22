@@ -522,10 +522,10 @@ export function S09StarSection() {
         </div>
         {/* ── "The Founders" · Figma 839:1328 ──────────────────────────────────
             left=2059.04 top=200.4 outer_w=45.515 outer_h=279.235  rot≈0°
-            Nudged a few px up so it sits cleanly on star1.png's banner. */}
+            Nudged up so it sits cleanly on star1.png's banner. */}
         <div data-s09 style={{
           position: "absolute",
-          left: vw(200.4), top: `calc(${btop(2059.04, 45.515)} - 12px)`,
+          left: vw(200.4), top: `calc(${btop(2059.04, 45.515)} - 22px)`,
           width: vw(279.235), zIndex: 3, pointerEvents: "none",
         }}>
           <p className="font-cormorant" style={{ fontWeight: 400, fontSize: "clamp(14px, 2.08vw, 40px)", lineHeight: 1.09, letterSpacing: "-0.8px", color: "#414141", whiteSpace: "nowrap", textTransform: "capitalize" }}>
@@ -551,61 +551,44 @@ export function S09StarSection() {
           </div>
         </div>
 
-        {/* ── star13 — angled newspaper document · parallax 10 ─────────────────
+        {/* ── star13 — angled newspaper note · parallax 10 ─────────────────────
             Figma 818:1229  left=1242.65  top=41.4  w=303.861 h=406.536
-            inner rot=73.33° → browser −16.67°                                */}
+            inner rot=73.33° → browser −16.67°
+            Answer text lives inside this same rotated wrapper as a sibling
+            of the note image, positioned by % of the note's own box. The
+            previous version gave each line its own figma-derived left/top
+            and its own rotation (−17.93°/−17.81°, not quite the note's
+            −16.67°) instead of sharing the note's coordinate space — those
+            small independent errors compounded until all three lines
+            collapsed onto roughly the same spot and spilled past the
+            paper's right/bottom edges. Percentages below are read directly
+            off star13.png: the LOCATION/DATE/NOTES rows sit at ~24.5% /
+            38.6% / 52.6% of the image height, and their label text ends by
+            ~41% of the width, so the answers start at 45%.             */}
         <div ref={ir(10)} data-s09 data-design-star-key="img-10" style={{ position: "absolute", left: vw(41.4), top: btop(1242.65, 303.861), width: vw(406.536), zIndex: 3 }}>
-          <div style={{ transform: "rotate(-16.67deg)", transformOrigin: "top left" }}>
+          <div style={{ position: "relative", transform: "rotate(-16.67deg)", transformOrigin: "top left" }}>
             <Image src="/assets/star/star13.png" alt="" aria-hidden width={730} height={428} style={imgStyle} />
+            <p style={{
+              position: "absolute", left: "45%", top: "24.5%", transform: "translateY(-50%)", margin: 0,
+              fontFamily: "var(--font-courier-prime)",
+              fontSize: "clamp(10px, 0.78vw, 16px)",
+              lineHeight: 1.2, letterSpacing: "-0.3px", color: "#292929", whiteSpace: "nowrap",
+            }}>America</p>
+            <p style={{
+              position: "absolute", left: "45%", top: "38.6%", transform: "translateY(-50%)", margin: 0,
+              fontFamily: "var(--font-courier-prime)",
+              fontSize: "clamp(10px, 0.78vw, 16px)",
+              lineHeight: 1.2, letterSpacing: "-0.3px", color: "#292929", whiteSpace: "nowrap", textTransform: "capitalize",
+            }}>1950-1953</p>
+            <p style={{
+              position: "absolute", left: "45%", top: "52.6%", transform: "translateY(-50%)", margin: 0, width: "50%",
+              fontFamily: "var(--font-courier-prime)",
+              fontSize: "clamp(9px, 0.68vw, 14px)",
+              lineHeight: 1.15, letterSpacing: "-0.3px", color: "#292929",
+            }}>
+              Nikolai Volkov &amp; Eleanor Voss
+            </p>
           </div>
-        </div>
-
-        {/* ── "America" — annotation label · Figma 818:1230 ────────────────────
-            left=1432.94  top=210.06  inner rot=72.07° → −17.93°  font=21.284px
-            Nudged a few px up to sit correctly on star13.png. */}
-        <div data-s09 style={{
-          position: "absolute",
-          left: vw(210.06), top: `calc(${btop(1432.94, 53.421)} - 5px)`,
-          transform: "rotate(-17.93deg)", transformOrigin: "top left", zIndex: 5, pointerEvents: "none",
-        }}>
-          <p style={{
-            fontFamily: "var(--font-courier-prime)",
-            fontSize: "clamp(14px, 1.1vw, 26px)",
-            lineHeight: 1.32, letterSpacing: "-0.43px", color: "#292929", whiteSpace: "nowrap",
-          }}>America</p>
-        </div>
-
-        {/* ── "1950-1953" — annotation label · Figma 818:1231 ──────────────────
-            left=1386.05  top=174.06  inner rot=72.07° → −17.93°  font=21.284px
-            Nudged a few px up to sit correctly on star13.png. */}
-        <div data-s09 style={{
-          position: "absolute",
-          left: vw(174.06), top: `calc(${btop(1386.05, 61.116)} - 5px)`,
-          transform: "rotate(-17.93deg)", transformOrigin: "top left", zIndex: 5, pointerEvents: "none",
-        }}>
-          <p style={{
-            fontFamily: "var(--font-courier-prime)",
-            fontSize: "clamp(14px, 1.1vw, 26px)",
-            lineHeight: 1.32, letterSpacing: "-0.43px", color: "#292929", whiteSpace: "nowrap", textTransform: "capitalize",
-          }}>1950-1953</p>
-        </div>
-
-        {/* ── "Nikolai Volkov & Eleanor Voss" · Figma 818:1232 ─────────────────
-            left=calc(50%−565.21)=1354.79  top=197.73
-            inner rot=72.19° → −17.81°  font=20px  w=202.493px
-            Nudged a few px up to sit correctly on star13.png.             */}
-        <div data-s09 style={{
-          position: "absolute",
-          left: vw(197.73), top: `calc(${btop(1354.79, 98.102)} - 5px)`, width: vw(202.493),
-          transform: "rotate(-17.81deg)", transformOrigin: "top left", zIndex: 5, pointerEvents: "none",
-        }}>
-          <p style={{
-            fontFamily: "var(--font-courier-prime)",
-            fontSize: "clamp(13px, 1.03vw, 24px)",
-            lineHeight: 0.95, letterSpacing: "-0.4px", color: "#292929",
-          }}>
-            Nikolai Volkov &amp; Eleanor Voss
-          </p>
         </div>
 
         {/* ── Red circle 3 · Vector10 · over star13 area ───────────────────── */}

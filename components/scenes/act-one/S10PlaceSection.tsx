@@ -5,12 +5,37 @@ import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { playSfx } from "@/lib/audio";
+import { RED_INK_COLOR, RED_INK_STROKE_WIDTH } from "@/components/effects/redInk";
 
 gsap.registerPlugin(ScrollTrigger);
 
 // ── entry-bg canvas dimensions ────────────────────────────────────────────────
 const BG_W = 3852;
 const BG_H = 2181;
+
+// ── "The Place" text overlay — Figma node 801:973, frame 1940×1092 ───────────
+// (matches interior-preview.png's own aspect ratio, so vw/vh below line up
+// with the phase-2 interior image at the reference viewport.)
+const TEXT_FRAME_W = 1940;
+const TEXT_FRAME_H = 1092;
+function tvw(px: number): string { return `${((px / TEXT_FRAME_W) * 100).toFixed(3)}vw`; }
+function tvh(px: number): string { return `${((px / TEXT_FRAME_H) * 100).toFixed(3)}vh`; }
+
+// Red guide lines (Figma nodes 1099:154 "Line 3" / 1099:155 "Line 2"):
+//   horizontal enters from the frame's left edge (x=0) and stops just short
+//   of "the place" title, at y=449 — same technique as S07/S09's red-ink
+//   guide lines. Vertical drops from the paragraph's own left edge (x=508,
+//   matching its "left" below) down to the bottom of the frame (y=1092).
+const LINE_H_Y     = 449;
+const LINE_H_END_X = 614;
+const LINE_V_X       = 508;
+const LINE_V_START_Y = 643;
+const LINE_V_END_Y   = 1092;
+
+// Darkening isn't in the static Figma frame (which already bakes in the
+// image's own moodiness) — this is the added "begin to darken" treatment,
+// kept modest so the interior stays readable under the text.
+const DARKEN_MAX = 0.5;
 
 // ── Doorway void (from brightness scan of entry-bg.png) ──────────────────────
 //   x: 44% → 59%   |   y: 34% → 85.8%
@@ -52,6 +77,10 @@ const DOOR_VARS: Record<string, string> = {
 //  0.60 → 0.74   Entry layer fades out (interior has taken over)
 //  0.62 → 0.86   Phase-2 blur clears
 //  0.64 → 0.88   Phase-2 subtle zoom (1.0 → 1.06, into the room)
+//  0.88 → 0.92   Stage 2: text + red lines reveal, image begins to darken
+//                (starts only once stage 1 — the image itself — has
+//                fully settled; driven purely by continued scroll, not a
+//                timer)
 //  0.84 → 1.00   Exit overlay fades in
 const PHASE = {
   INTRO_CLEAR:      0.04,
@@ -77,6 +106,8 @@ const PHASE = {
   P2_BLUR_END:      0.86,
   P2_ZOOM_START:    0.64,
   P2_ZOOM_END:      0.88,
+  STAGE2_START:     0.88,  // = P2_ZOOM_END — stage 1 (the image) must settle first
+  STAGE2_END:       0.92,
   EXIT_START:       0.95,
 };
 
@@ -101,6 +132,13 @@ export function S10PlaceSection() {
   const introRef   = useRef<HTMLDivElement | null>(null);
   const exitRef    = useRef<HTMLDivElement | null>(null);
   const doorSoundPlayed = useRef(false);
+
+  // "The Place" stage-2 reveal — text, red guide lines, darken overlay
+  // (see PHASE.STAGE2_START/END and the effect below; pure scroll-driven)
+  const placeTextRef  = useRef<HTMLDivElement | null>(null);
+  const placeDarkRef  = useRef<HTMLDivElement | null>(null);
+  const lineHRef      = useRef<HTMLDivElement | null>(null);
+  const lineVRef      = useRef<HTMLDivElement | null>(null);
 
   // ── Video: autoplay loop via IntersectionObserver ─────────────────────────
   useEffect(() => {
@@ -186,6 +224,22 @@ export function S10PlaceSection() {
           // Exit overlay
           if (exitRef.current)
             exitRef.current.style.opacity = String(lerp01(p, PHASE.EXIT_START, 1));
+
+          // "The Place" stage 2 — text, red guide lines, and the darken
+          // treatment all ride the SAME scroll-driven value, so they
+          // literally cannot appear before stage 1 (the image) has finished
+          // settling at PHASE.STAGE2_START (= PHASE.P2_ZOOM_END), and they
+          // retreat smoothly (not a hard cut) if the user scrolls back out —
+          // this is a pure function of scroll progress, no timers involved.
+          const stage2 = lerp01(p, PHASE.STAGE2_START, PHASE.STAGE2_END);
+          if (placeTextRef.current)
+            placeTextRef.current.style.opacity = String(stage2);
+          if (placeDarkRef.current)
+            placeDarkRef.current.style.opacity = String(stage2 * DARKEN_MAX);
+          if (lineHRef.current)
+            lineHRef.current.style.width = tvw(LINE_H_END_X * stage2);
+          if (lineVRef.current)
+            lineVRef.current.style.height = tvh((LINE_V_END_Y - LINE_V_START_Y) * stage2);
         },
       });
     }, section);
@@ -360,6 +414,89 @@ export function S10PlaceSection() {
             fill sizes="100vw"
             style={{ objectFit: "cover" }}
           />
+
+          {/* ── Stage-2 darken treatment ───────────────────────────────────────
+              Plain black scrim over interior-preview.png, scoped to this same
+              div. Opacity is driven by `stage2` above — gradual, not a hard
+              cut, and only ever active once stage 1 (the image itself) has
+              fully appeared. */}
+          <div
+            ref={placeDarkRef}
+            aria-hidden="true"
+            style={{ position: "absolute", inset: 0, background: "#000", opacity: 0, pointerEvents: "none" }}
+          />
+
+          {/* ── Red guide lines (Figma nodes 1099:154 / 1099:155) ─────────────
+              Fixed-thickness (non-scaling) bars rather than SVG, since both
+              are pure axis-aligned segments. Their length is driven by the
+              same `stage2` value as the text, so they draw in together with
+              it — see LINE_H_* / LINE_V_* constants above for placement. */}
+          <div
+            ref={lineHRef}
+            aria-hidden="true"
+            style={{
+              position: "absolute", left: 0,
+              top: `calc(${tvh(LINE_H_Y)} - ${RED_INK_STROKE_WIDTH / 2}px)`,
+              width: 0, height: `${RED_INK_STROKE_WIDTH}px`,
+              background: RED_INK_COLOR, pointerEvents: "none",
+            }}
+          />
+          <div
+            ref={lineVRef}
+            aria-hidden="true"
+            style={{
+              position: "absolute", top: tvh(LINE_V_START_Y),
+              left: `calc(${tvw(LINE_V_X)} - ${RED_INK_STROKE_WIDTH / 2}px)`,
+              width: `${RED_INK_STROKE_WIDTH}px`, height: 0,
+              background: RED_INK_COLOR, pointerEvents: "none",
+            }}
+          />
+
+          {/* ── "The Place" text overlay (Figma node 801:973) ─────────────────
+              Scoped as a child of the phase-2 interior-preview.png element
+              itself (not the section) — it shares this div's stacking
+              context, so it only ever renders on top of this exact image and
+              moves/scales with it. Opacity is `stage2` (see effect above):
+              this is stage 2 of this view, appearing only after stage 1 (the
+              image) has fully settled and the user keeps scrolling. */}
+          <div
+            ref={placeTextRef}
+            aria-hidden="true"
+            style={{
+              position: "absolute", inset: 0,
+              opacity: 0,
+              pointerEvents: "none",
+            }}
+          >
+            <p
+              className="font-cormorant"
+              style={{
+                position: "absolute",
+                left: `calc(50% - ${tvw(310)})`, top: tvh(387),
+                margin: 0,
+                fontStyle: "italic", fontWeight: 700,
+                fontSize: `clamp(28px, ${tvw(80)}, 80px)`,
+                lineHeight: 1.53, letterSpacing: "-1.6px",
+                color: "#ffffff", textTransform: "capitalize", whiteSpace: "nowrap",
+              }}
+            >
+              the place
+            </p>
+            <p
+              className="font-cormorant"
+              style={{
+                position: "absolute",
+                left: `calc(50% - ${tvw(462)})`, top: tvh(509), width: tvw(840),
+                margin: 0,
+                fontWeight: 600,
+                fontSize: `clamp(16px, ${tvw(40)}, 40px)`,
+                lineHeight: 1.32, letterSpacing: "-0.8px",
+                color: "#ffffff",
+              }}
+            >
+              Hidden behind an elegant storefront, Maison Obscura operated as both a fashion house and a shelter
+            </p>
+          </div>
         </div>
 
         {/* ── Intro overlay ─────────────────────────────────────────────────── */}

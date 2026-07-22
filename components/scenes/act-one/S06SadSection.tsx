@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useLazyVideoSrc } from "@/components/effects/useLazyVideoSrc";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -77,6 +78,9 @@ export function S06SadSection() {
   // Video elements
   const vid1Ref  = useRef<HTMLVideoElement | null>(null);  // sad.mp4
   const vid2Ref  = useRef<HTMLVideoElement | null>(null);  // sad8.mp4
+
+  useLazyVideoSrc(vid1Ref, sectionRef, "/assets/sad/sad.mp4");
+  useLazyVideoSrc(vid2Ref, sectionRef, "/assets/sad/sad8.mp4");
 
   // Parallax inner-wrapper refs (outer div = position+rotation, inner = GSAP)
   const px5Ref   = useRef<HTMLDivElement | null>(null);  // sad5
@@ -523,7 +527,6 @@ export function S06SadSection() {
             >
               <video
                 ref={vid2Ref}
-                src="/assets/sad/sad8.mp4"
                 muted
                 playsInline
                 preload="auto"
@@ -569,7 +572,6 @@ export function S06SadSection() {
             >
               <video
                 ref={vid1Ref}
-                src="/assets/sad/sad.mp4"
                 muted
                 playsInline
                 preload="auto"

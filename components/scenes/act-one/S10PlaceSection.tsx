@@ -6,6 +6,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { playSfx } from "@/lib/audio";
 import { RED_INK_COLOR, RED_INK_STROKE_WIDTH } from "@/components/effects/redInk";
+import { useLazyVideoSrc } from "@/components/effects/useLazyVideoSrc";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -122,6 +123,8 @@ function eio(t: number): number {
 export function S10PlaceSection() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const videoRef   = useRef<HTMLVideoElement | null>(null);
+
+  useLazyVideoSrc(videoRef, sectionRef, "/assets/Place/place.mp4");
   const streetRef  = useRef<HTMLDivElement | null>(null);
   const entryRef   = useRef<HTMLDivElement | null>(null);
   const p1IntRef   = useRef<HTMLDivElement | null>(null);
@@ -281,7 +284,6 @@ export function S10PlaceSection() {
         >
           <video
             ref={videoRef}
-            src="/assets/Place/place.mp4"
             muted loop playsInline preload="auto"
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
           />

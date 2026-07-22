@@ -5,6 +5,7 @@ import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { RED_INK_COLOR, RED_INK_STROKE_WIDTH } from "@/components/effects/redInk";
+import { useLazyVideoSrc } from "@/components/effects/useLazyVideoSrc";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -73,6 +74,8 @@ export function S09StarSection() {
   const quoteSectionRef = useRef<HTMLElement | null>(null);
   const videoRef        = useRef<HTMLVideoElement | null>(null);
   const imgRefs         = useRef<(HTMLDivElement | null)[]>([]);
+
+  useLazyVideoSrc(videoRef, sectionRef, "/assets/star/star-video.mp4");
 
   const charRefs      = useRef<(HTMLSpanElement | null)[]>([]);
   const maisonWrapRef = useRef<HTMLSpanElement | null>(null);
@@ -421,7 +424,7 @@ export function S09StarSection() {
         {/* ── star-video · parallax 15 ──────────────────────────────────────── */}
         <div ref={ir(15)} data-design-star-key="img-15" style={{ position: "absolute", left: vw(275.35), top: btop(2601.11, 320.042), width: vw(562.713), height: vy(320.042), zIndex: 4 }}>
           <div data-s09 style={{ width: "100%", height: "100%" }}>
-            <video ref={videoRef} src="/assets/star/star-video.mp4" muted loop playsInline preload="auto"
+            <video ref={videoRef} muted loop playsInline preload="auto"
               style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
           </div>
         </div>

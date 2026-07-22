@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useLazyVideoSrc } from "@/components/effects/useLazyVideoSrc";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -81,6 +82,8 @@ export function S05Transition() {
   const circleRef   = useRef<SVGPathElement | null>(null);
   const eyesDownRef = useRef<HTMLDivElement | null>(null);
 
+  useLazyVideoSrc(videoRef, sectionRef, VIDEO_SRC);
+
   useEffect(() => {
     const section = sectionRef.current;
     const video   = videoRef.current;
@@ -152,7 +155,6 @@ export function S05Transition() {
        */}
       <video
         ref={videoRef}
-        src={VIDEO_SRC}
         muted
         playsInline
         preload="auto"

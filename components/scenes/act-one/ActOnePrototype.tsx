@@ -20,6 +20,7 @@ import { ArrestSection } from "./ArrestSection";
 import { ReverseTunnelSection } from "./ReverseTunnelSection";
 import { DesignModePanel } from "../../dev/DesignModePanel";
 import { initAudioManager, duckMusic, restoreMusic } from "@/lib/audio";
+import { useLazyVideoSrc } from "@/components/effects/useLazyVideoSrc";
 
 // ── SOUND CONTROLS ────────────────────────────────────────────────────────────
 // Asset path served from /public. Edit here to swap the audio file.
@@ -94,6 +95,8 @@ export function ActOnePrototype() {
   const tunnelVideoWrapRef   = useRef<HTMLDivElement | null>(null);
   const tunnelVideoRef       = useRef<HTMLVideoElement | null>(null);
   const transitionOverlayRef = useRef<HTMLDivElement | null>(null);
+
+  useLazyVideoSrc(tunnelVideoRef, introRef, "/assets/tunnel.mp4");
 
   // ── Year / exit overlay refs ──────────────────────────────────────────────
   const year2026Ref   = useRef<HTMLDivElement | null>(null);
@@ -357,7 +360,6 @@ export function ActOnePrototype() {
             >
               <video
                 ref={tunnelVideoRef}
-                src="/assets/tunnel.mp4"
                 muted
                 playsInline
                 preload="auto"

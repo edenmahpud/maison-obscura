@@ -3,6 +3,7 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useLazyVideoSrc } from "@/components/effects/useLazyVideoSrc";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -46,6 +47,8 @@ export function ReverseTunnelSection() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const year1957Ref = useRef<HTMLDivElement | null>(null);
   const year2026Ref = useRef<HTMLDivElement | null>(null);
+
+  useLazyVideoSrc(videoRef, sectionRef, "/assets/tunnel.mp4");
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -131,7 +134,6 @@ export function ReverseTunnelSection() {
       >
         <video
           ref={videoRef}
-          src="/assets/tunnel.mp4"
           muted
           playsInline
           preload="auto"

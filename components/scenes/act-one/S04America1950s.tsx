@@ -826,7 +826,7 @@ export function S04America1950s() {
         }}
       >
         <Image
-          src="/assets/happy/happy10.png" alt="The Perfect Decade"
+          src="/assets/S04-1950s-america/the_perfect1.png" alt="The Perfect Decade"
           fill sizes="100vw" className="object-cover" priority
         />
       </div>

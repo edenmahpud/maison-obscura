@@ -12,6 +12,41 @@ gsap.registerPlugin(ScrollTrigger);
 export const BOARD_W = 1480;
 export const BOARD_H = 1000;
 
+// ── Nikolai identification — single-element zoom/crossfade target ────────────
+// Values carried over from the retired S12WantedTransition: same photo, same
+// measured face positions, so the identification reads as a continuation
+// rather than a second, differently-cropped copy of the same evidence.
+const ARCHIVAL_FACE_X = 0.618; // Nikolai's face within star20.png (piece 19)
+const ARCHIVAL_FACE_Y = 0.205;
+const WANTED_SRC        = "/assets/WANTED.png";
+const WANTED_NATURAL_W  = 983;
+const WANTED_NATURAL_H  = 950;
+const WANTED_FACE_X     = 0.855; // his FBI mugshot, frontal, within the poster
+const WANTED_FACE_Y     = 0.645;
+const ZOOM_WANTED       = 6.7;   // crossfade-matching tightness on the mugshot
+
+// Bottom-right signature block ("JOHN EDGAR HOOVER, DIRECTOR" / "Federal
+// Bureau of Investigation, Washington 25, D. C."), measured directly in the
+// poster's own natural pixel space (983×950) so the circle stays locked to
+// the text at any render size. Values carried over from the retired
+// S12WantedTransition.
+const HOOVER_CIRCLE = { cx: 760, cy: 888, rx: 195, ry: 45, rot: -2 };
+
+// Rect (in viewport px) of an image rendered with object-fit: contain inside
+// a full-viewport box. Sizing the wrapper to exactly this rect — instead of
+// scaling a full-viewport box with object-fit:cover, which crops edges to
+// fill — means "scale: 1" shows the complete poster with nothing cropped
+// off, and every intermediate scale zooms/reveals against the image's own
+// true bounds rather than a viewport-cropped version of it.
+function containRect(naturalW: number, naturalH: number) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const scale = Math.min(vw / naturalW, vh / naturalH);
+  const w = naturalW * scale;
+  const h = naturalH * scale;
+  return { w, h, left: (vw - w) / 2, top: (vh - h) / 2 };
+}
+
 interface Piece {
   src: string; alt: string;
   cx: number; cy: number; w: number;
@@ -155,6 +190,14 @@ export function S12InvestigationBoard() {
   const stickyRef  = useRef<HTMLDivElement | null>(null);
   const boardRef   = useRef<HTMLDivElement | null>(null);
   const revealSoundPlayed = useRef(false);
+  const circleSoundPlayed = useRef(false);
+
+  // Nikolai identification crossfade — single fixed-viewport element that
+  // fades in as the board's own star20 piece (Nikolai's face) fades out.
+  const wantedPortraitRef = useRef<HTMLDivElement | null>(null);
+  const wantedInnerRef    = useRef<HTMLDivElement | null>(null);
+  const hooverCircleRef   = useRef<SVGPathElement | null>(null);
+  const crossfadeFlashRef = useRef<HTMLDivElement | null>(null);
 
   // ── Scale board to fit viewport, never upscale ────────────────────────────
   useEffect(() => {
@@ -176,11 +219,24 @@ export function S12InvestigationBoard() {
   }, []);
 
   // ── Board reveal — scrub-driven, overlaps S11 exit blur ──────────────────
-  // In design mode the sticky is immediately visible so the board can be edited.
+  // In design mode the sticky is immediately visible (full board, no reveal)
+  // so it stays editable. Otherwise this is one continuous scrubbed timeline
+  // across the whole assembly sequence:
+  //   stage 1 (0–8)    the dark wall itself sharpens — board still empty
+  //   stage 2 (8–14)   first main document (the logo) settles in
+  //   stage 3 (14–20)  second image settles in
+  //   stage 4 (20–75)  every remaining photograph/note, one by one
+  //   stage 5 (75–85)  red investigation circles draw in
+  //   stage 6 (85–96)  red connecting threads draw + pins fade in
+  //   stage 7 (96–100) hold — board fully assembled before the focus-zoom
+  //                     effect (its own ScrollTrigger, starting at -200%) begins
+  // A single scrub timeline makes every stage reversible for free — scrolling
+  // up simply plays it backwards.
   useEffect(() => {
     const section = sectionRef.current;
     const sticky  = stickyRef.current;
-    if (!section || !sticky) return;
+    const board   = boardRef.current;
+    if (!section || !sticky || !board) return;
 
     if (isDesignMode()) {
       gsap.set(sticky, { opacity: 1, filter: "blur(0px)" });
@@ -189,30 +245,124 @@ export function S12InvestigationBoard() {
 
     gsap.set(sticky, { opacity: 0, filter: "blur(20px)" });
 
-    const tween = gsap.to(sticky, {
-      opacity: 1,
-      filter: "blur(0px)",
-      ease: "none",
-      scrollTrigger: {
-        trigger: section,
-        start: "top -30%",
-        end:   "top -70%",
-        scrub: 0.4,
-        onUpdate: (self) => {
-          // Evidence (paper) settles in first; the red circles get drawn in
-          // shortly after, once the board itself is mostly legible.
-          if (self.progress > 0.15 && !revealSoundPlayed.current) {
-            revealSoundPlayed.current = true;
-            playSfx("paper");
-            setTimeout(() => playSfx("redCircle"), 350);
-          } else if (self.progress <= 0.15 && revealSoundPlayed.current) {
-            revealSoundPlayed.current = false;
-          }
-        },
-      },
-    });
+    const ctx = gsap.context(() => {
+      const allPieceEls = Array.from(
+        board.querySelectorAll<HTMLElement>(".par-img[data-piece-index]"),
+      );
+      const mainDocEl   = allPieceEls.find((el) => el.dataset.pieceIndex === "0");
+      const secondImgEl = allPieceEls.find((el) => el.dataset.pieceIndex === "1");
+      const restEls     = allPieceEls.filter((el) => el !== mainDocEl && el !== secondImgEl);
 
-    return () => { tween.scrollTrigger?.kill(); tween.kill(); };
+      const innerOf = (el: HTMLElement) => el.querySelector<HTMLElement>(".rot-inner");
+      const rotOf   = (el: HTMLElement) =>
+        PIECES[parseInt(el.dataset.pieceIndex ?? "0", 10)]?.rot ?? 0;
+
+      // Every piece settles from slightly shrunk/rotated/dropped-down into its
+      // exact final cx/cy/w/rot — never past it — so the finished board matches
+      // the existing composition exactly.
+      const revealPiece = (tl: gsap.core.Timeline, el: HTMLElement | undefined, at: number, dur: number) => {
+        if (!el) return;
+        tl.fromTo(el, { opacity: 0 }, { opacity: 1, duration: dur, ease: "none" }, at);
+        const inner = innerOf(el);
+        if (!inner) return;
+        const rot = rotOf(el);
+        tl.fromTo(
+          inner,
+          { scale: 0.96, y: 14, rotation: rot + 6 },
+          { scale: 1, y: 0, rotation: rot, duration: dur, ease: "power2.out" },
+          at,
+        );
+      };
+
+      const threadEls = Array.from(board.querySelectorAll<SVGPathElement>("[data-design-thread-idx]"));
+      const circleEls = Array.from(board.querySelectorAll<SVGPathElement>("[data-design-circle-idx]"));
+      const pinEls    = Array.from(board.querySelectorAll<SVGCircleElement>("[data-design-pin-idx]"));
+
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: section,
+          start: "top -20%",
+          end:   "top -190%",
+          scrub: 0.6,
+          invalidateOnRefresh: true,
+          onUpdate: (self) => {
+            // Evidence (paper) settles in first; the red circles get their own
+            // cue once the board itself is fully assembled.
+            if (self.progress > 0.08 && !revealSoundPlayed.current) {
+              revealSoundPlayed.current = true;
+              playSfx("paper");
+            } else if (self.progress <= 0.08 && revealSoundPlayed.current) {
+              revealSoundPlayed.current = false;
+            }
+            if (self.progress > 0.75 && !circleSoundPlayed.current) {
+              circleSoundPlayed.current = true;
+              playSfx("redCircle");
+            } else if (self.progress <= 0.75 && circleSoundPlayed.current) {
+              circleSoundPlayed.current = false;
+            }
+          },
+        },
+      });
+
+      // ── Stage 1: the wall/board itself resolves — nothing on it yet ────────
+      tl.to(sticky, { opacity: 1, filter: "blur(0px)", ease: "none", duration: 8 }, 0);
+
+      // ── Stage 2 / 3: the two lead pieces get their own dedicated beat ───────
+      revealPiece(tl, mainDocEl, 8, 6);
+      revealPiece(tl, secondImgEl, 14, 6);
+
+      // ── Stage 4: everything else, staggered one by one ──────────────────────
+      restEls.forEach((el, i) => {
+        const at = 20 + (55 * i) / Math.max(1, restEls.length - 1);
+        revealPiece(tl, el, at, 4);
+      });
+
+      // ── Stage 5: red investigation circles draw in ──────────────────────────
+      circleEls.forEach((el, i) => {
+        const at = 75 + (8 * i) / Math.max(1, circleEls.length - 1);
+        tl.fromTo(
+          el,
+          { opacity: 0, strokeDashoffset: 1 },
+          { opacity: 1, strokeDashoffset: 0, duration: 6, ease: "none" },
+          at,
+        );
+      });
+
+      // ── Stage 6: red connecting threads draw in, pins settle with them ──────
+      threadEls.forEach((el, i) => {
+        const at = 85 + (9 * i) / Math.max(1, threadEls.length - 1);
+        tl.fromTo(
+          el,
+          { opacity: 0, strokeDashoffset: 1 },
+          { opacity: 1, strokeDashoffset: 0, duration: 5, ease: "none" },
+          at,
+        );
+      });
+      pinEls.forEach((el, i) => {
+        const at = 88 + (8 * i) / Math.max(1, pinEls.length - 1);
+        tl.fromTo(el, { opacity: 0 }, { opacity: 1, duration: 4, ease: "none" }, at);
+      });
+
+      // ── Stage 7 (96–100): implicit hold — nothing scheduled here, so the
+      // fully assembled board just sits still before the focus-zoom effect
+      // (its own ScrollTrigger starting at -200%) takes over.
+    }, section);
+
+    // This section sits deep in a very long page with many components above
+    // it (videos, 3D canvases, lazy images) still settling their own layout
+    // after mount. If ScrollTrigger computes this trigger's start/end before
+    // that settles, every position ends up wrong. Refresh once the full page
+    // (all images/fonts) has finished loading to recalculate against final
+    // layout, plus a short fallback timer in case "load" already fired.
+    const refresh = () => ScrollTrigger.refresh();
+    window.addEventListener("load", refresh);
+    const fallback = window.setTimeout(refresh, 1200);
+
+    return () => {
+      window.removeEventListener("load", refresh);
+      window.clearTimeout(fallback);
+      ctx.revert();
+    };
   }, []);
 
   // ── Subtle parallax — skipped in design mode ──────────────────────────────
@@ -255,25 +405,57 @@ export function S12InvestigationBoard() {
   }, []);
 
 
-  // ── Investigative focus — board dissolves while the focus image expands ─────
+  // ── Investigative focus — Nikolai's identification ───────────────────────
   //
   // Scroll map (section height 900vh, sticky active for 800vh):
   //
   //   0– 75vh    board blur-in from S11
   //   75–200vh   stagger plays; viewer examines full board (125vh hold)
-  //   200–750vh  ← THIS ScrollTrigger (550vh, ≈55vh per unit)
-  //     t=0→8    all board elements fade AND focus image grows — fully parallel
-  //     t=8→10   hold: focus image fills the viewport
+  //   200–750vh  ← THIS ScrollTrigger (550vh, ≈55vh per unit); within its own
+  //               0–1 progress:
+  //     0.00–0.38  the couple's photo (star20, piece 19) enlarges, then zooms
+  //                + pans onto Nikolai's face specifically (Eleanor drifts
+  //                out of frame) — same single element the whole time
+  //     0.38–0.50  crossfade directly into his matching FBI portrait (matched
+  //                face position, brief blur + exposure-flash pulse, never a gap)
+  //     0.50–0.66  zoom OUT from the tight face-crossfade to reveal the
+  //                complete, uncropped wanted.png — a dedicated full-poster
+  //                state, not a peek behind it toward the board or FBISection
+  //     0.66–0.74  hold the complete poster dead still, centered, full-screen
+  //     0.74–0.82  a red hand-drawn circle draws itself in around the
+  //                Hoover / FBI signature block, bottom-right of the poster
+  //     0.82–0.90  hold on the marked poster — signature circled, still visible
+  //     0.90–1.00  the poster fades away, handing off to FBISection's own
+  //                independent fade-in beneath it. The board and Nikolai's
+  //                photo do NOT return; only scrolling back up past
+  //                0.50/0.38 undoes those earlier stages.
   //   750–800vh  post-scrub hold before section unsticks
   //
+  // Nikolai's photo (star20, piece 19) is the one persistent DOM element
+  // animated throughout — no second copy of it is ever created. The FBI
+  // portrait is a different photo entirely (WANTED.png), so it's necessarily
+  // a separate element, but it only exists once too.
   useEffect(() => {
     if (isDesignMode()) return;
 
-    const section = sectionRef.current;
-    const board   = boardRef.current;
-    if (!section || !board) return;
+    const section      = sectionRef.current;
+    const board        = boardRef.current;
+    const wanted       = wantedPortraitRef.current;
+    const wantedInner  = wantedInnerRef.current;
+    const hooverCircle = hooverCircleRef.current;
+    const flash        = crossfadeFlashRef.current;
+    if (!section || !board || !wanted || !wantedInner || !hooverCircle || !flash) return;
 
-    // Piece index 19 (star20.png, cx:1363, cy:188, w:258) is the focus image.
+    // Size the inner wrapper to the poster's exact contain-fit rect so
+    // "scale: 1" shows the complete, uncropped image for the dedicated
+    // full-poster hold state (see containRect()).
+    const wr = containRect(WANTED_NATURAL_W, WANTED_NATURAL_H);
+    wantedInner.style.width  = `${wr.w}px`;
+    wantedInner.style.height = `${wr.h}px`;
+    wantedInner.style.left   = `${wr.left}px`;
+    wantedInner.style.top    = `${wr.top}px`;
+
+    // Piece index 19 (star20.png, cx:1363, cy:188, w:258) is Nikolai & Eleanor's photo.
     const focusEl = board.querySelector<HTMLElement>("[data-piece-index='19']");
     if (!focusEl) return;
 
@@ -287,39 +469,129 @@ export function S12InvestigationBoard() {
     const imgW = 258;
     const imgH = Math.round(imgW * 0.72); // ≈ 186
 
-    // Scale so the image covers the full viewport.
+    // Scale so the piece covers the full viewport — same "cover" math as before.
     const SCALE = Math.max(vw / (imgW * boardScale), vh / (imgH * boardScale)) * 1.02;
 
-    // Move the image's geometric center to the board center (= viewport center).
-    // center in board coords: (cx, top + h/2) = (1363, 69 + 93) = (1363, 162)
-    const TX = -(1363 - 740); // -623
-    const TY = -(162  - 500); //  338
+    // Nikolai's face within the piece (board coords), not the photo's
+    // geometric middle — the translate below centers HIM specifically,
+    // so Eleanor (elsewhere in frame) drifts outside the zoomed view.
+    const pieceLeft  = 1363 - imgW / 2;    // 1234
+    const pieceTop   = 188  - imgW * 0.46; // ≈69.32
+    const faceBoardX = pieceLeft + ARCHIVAL_FACE_X * imgW;
+    const faceBoardY = pieceTop  + ARCHIVAL_FACE_Y * imgH;
+    const TX = -(faceBoardX - 740);
+    const TY = -(faceBoardY - 500);
 
-    const tl = gsap.timeline({
-      scrollTrigger: {
-        trigger: section,
-        start:           "top -200%",
-        end:             "top -750%",
-        scrub:           2,
-        invalidateOnRefresh: true,
+    // This effect and the board-reveal timeline are two independent,
+    // continuously-rendering ScrollTriggers that both touch otherEls'
+    // opacity (one to reveal it, this one to dissolve it later). A
+    // declarative tween here — fromTo or to — inevitably keeps reasserting
+    // its own "at rest" value on every scroll frame even while this trigger
+    // is outside its own [start, end] window, fighting the board-reveal
+    // timeline's opposite opinion of what "at rest" means and leaving pieces
+    // stuck however this effect last set them, with no way to reverse.
+    // Driving it manually here and doing nothing at all while !self.isActive
+    // means this effect only ever touches these elements within its own
+    // range, in either scroll direction — outside it, whatever the
+    // board-reveal timeline (or the natural settled end-state) set stands
+    // untouched.
+    const ease = gsap.parseEase("power2.inOut");
+    const lerp01 = (p: number, lo: number, hi: number) => Math.min(1, Math.max(0, (p - lo) / (hi - lo)));
+
+    const P_ZOOM      = 0.38; // couple's photo enlarges, then zoom+pan onto Nikolai's face completes
+    const P_CROSSFADE = 0.50; // crossfade into the matching FBI portrait completes
+    const P_REVEAL    = 0.66; // zoom-out completes — the complete, uncropped wanted.png is visible
+    const P_HOLD1     = 0.74; // dedicated full-poster hold ends, red circle starts drawing
+    const P_CIRCLE    = 0.82; // Hoover-signature circle finishes drawing
+    const P_HOLD2     = 0.90; // hold on the marked poster ends; hands off into FBISection
+
+    const st = ScrollTrigger.create({
+      trigger: section,
+      start:           "top -200%",
+      end:             "top -750%",
+      scrub:           2,
+      invalidateOnRefresh: true,
+      onUpdate: (self) => {
+        if (!self.isActive) return;
+        const p = self.progress;
+
+        // F: "focus intensity" — rises across the enlarge + zoom-onto-face
+        // stages, then plateaus at 1 for the rest of this trigger's range.
+        // It never falls back on its own: the board and Nikolai's photo are
+        // gone for good once we've moved past him, going forward —
+        // scrolling back up still works, since re-entering [0,P_ZOOM]
+        // retraces this same curve in reverse.
+        const F = ease(lerp01(p, 0, P_ZOOM));
+
+        // C: crossfade progress from Nikolai's face to his FBI portrait.
+        // Also never falls back on its own — same reasoning as F.
+        const C = ease(lerp01(p, P_ZOOM, P_CROSSFADE));
+
+        // Combined "FBI portrait showing" amount — 0 early, 1 from the
+        // crossfade onward (no automatic return to 0).
+        const hide = C * F;
+
+        otherEls.forEach((el) => { el.style.opacity = String(1 - F); });
+        if (svgEl) svgEl.style.opacity = String(1 - F);
+
+        // Zoom anchored on Nikolai's face (not the box centre) — scaling
+        // grows the frame around him specifically. Kept above FBISection's
+        // own zIndex:50 sticky so its later fade-in never shows through
+        // while Nikolai's photo is still on screen.
+        const focusScale = 1 + (SCALE - 1) * F;
+        focusEl.style.zIndex = "53";
+        focusEl.style.transformOrigin = `${(ARCHIVAL_FACE_X * 100).toFixed(2)}% ${(ARCHIVAL_FACE_Y * 100).toFixed(2)}%`;
+        focusEl.style.transform =
+          `translate(${(TX * F).toFixed(2)}px, ${(TY * F).toFixed(2)}px) scale(${focusScale.toFixed(4)})`;
+        focusEl.style.opacity = String(1 - hide);
+        // Brief blur pulse only right at the crossfade itself — never a
+        // sustained blurred frame. CSS filter is rasterized *before* the
+        // transform scale is applied, so a blur radius set here gets
+        // magnified by the same factor on screen (a 7px blur reads as ~50px
+        // at 7x zoom) — dividing by the current scale keeps it visually
+        // subtle regardless of how zoomed in the element is.
+        const crossfadeBlur = Math.sin(Math.min(1, lerp01(p, P_ZOOM, P_CROSSFADE)) * Math.PI) * F;
+        const focusBlurPx = (crossfadeBlur * 7) / Math.max(1, focusScale);
+        focusEl.style.filter = focusBlurPx > 0.05 ? `blur(${focusBlurPx.toFixed(2)}px)` : "";
+
+        // FBI portrait: crossfades in tightly zoomed on Nikolai's matched
+        // face position, then eases out to scale 1 — the complete, uncropped
+        // poster — across P_CROSSFADE→P_REVEAL. lerp01 clamps past P_REVEAL,
+        // so this naturally holds at exactly scale 1 (dead still, nothing
+        // cropped) for the rest of the sequence (the full-poster hold, the
+        // circle draw, and the marked-state hold all share this same static
+        // framing — no extra branching needed). Only past P_HOLD2 does it
+        // fade away, handing off to FBISection (a separate fixed overlay,
+        // independently fading in beneath at zIndex:50) rather than
+        // dissolving back to the reassembled board or the cropped-zoom framing.
+        const revealOut = ease(lerp01(p, P_CROSSFADE, P_REVEAL));
+        const wantedScale = ZOOM_WANTED - (ZOOM_WANTED - 1) * revealOut;
+        wantedInner.style.transformOrigin = `${(WANTED_FACE_X * 100).toFixed(2)}% ${(WANTED_FACE_Y * 100).toFixed(2)}%`;
+        wantedInner.style.transform = `scale(${wantedScale.toFixed(4)})`;
+        const wantedFadeOut = 1 - ease(lerp01(p, P_HOLD2, 1));
+        wanted.style.opacity = String(hide * wantedFadeOut);
+        const wantedBlurPx = (crossfadeBlur * 5) / wantedScale;
+        wantedInner.style.filter = wantedBlurPx > 0.05 ? `blur(${wantedBlurPx.toFixed(2)}px)` : "";
+
+        // Hoover-signature circle — only starts drawing once the full,
+        // uncropped poster has already been held on screen for a beat
+        // (P_HOLD1), draws in across P_HOLD1→P_CIRCLE, then stays fully
+        // drawn through the P_CIRCLE→P_HOLD2 marked-state hold. A quick
+        // opacity ramp keeps the stroke from popping in at full weight the
+        // instant the dash starts unwinding — same technique used for every
+        // other hand-drawn circle on this board.
+        const circleT = ease(lerp01(p, P_HOLD1, P_CIRCLE));
+        hooverCircle.style.opacity = String(Math.min(1, circleT * 4));
+        hooverCircle.style.strokeDashoffset = String(1 - circleT);
+
+        // Brief exposure-flash pulse right at the crossfade's midpoint —
+        // quick in and out, a soft veil rather than a white overlay.
+        const flashT = Math.sin(Math.min(1, lerp01(p, P_ZOOM, P_CROSSFADE)) * Math.PI);
+        flash.style.opacity = String((flashT * F * 0.16).toFixed(3));
       },
     });
 
-    // Elevate focus image; scale from its own center — no face targeting.
-    tl.set(focusEl, { opacity: 1, zIndex: 50, transformOrigin: "50% 50%" }, 0);
-
-    // t=0→8: board dissolves AND focus image grows — fully parallel.
-    // fromTo is required so GSAP knows the explicit from-state (opacity: 1).
-    // Without it, GSAP captures the from-state at mount time when images are
-    // still at opacity: 0 (JSX default), and scrubbing backwards returns them
-    // to opacity: 0 instead of visible.
-    tl.fromTo(otherEls, { opacity: 1 }, { opacity: 0, ease: "power2.inOut", duration: 8 }, 0);
-    if (svgEl) tl.fromTo(svgEl, { opacity: 1 }, { opacity: 0, ease: "power2.inOut", duration: 8 }, 0);
-    tl.fromTo(focusEl, { x: 0, y: 0, scale: 1 }, { x: TX, y: TY, scale: SCALE, ease: "power2.inOut", duration: 8 }, 0);
-
-    // t=8→10: hold — focus image fills viewport, everything else gone.
-
-    return () => { tl.scrollTrigger?.kill(); tl.kill(); };
+    return () => { st.kill(); };
   }, []);
 
   const logo = PIECES[0];
@@ -407,12 +679,17 @@ export function S12InvestigationBoard() {
               <path
                 key={i}
                 data-design-thread-idx={i}
+                pathLength="1"
                 d={d}
                 stroke="#8A1818"
                 fill="none"
                 strokeWidth={i < 7 ? 1.55 : 1.15}
                 strokeLinecap="round"
-                style={{ filter: "drop-shadow(0 0 2px rgba(138,24,24,0.30))" }}
+                style={{
+                  filter: "drop-shadow(0 0 2px rgba(138,24,24,0.30))",
+                  strokeDasharray: "1",
+                  strokeDashoffset: "0",
+                }}
               />
             ))}
 
@@ -420,12 +697,17 @@ export function S12InvestigationBoard() {
               <path
                 key={i}
                 data-design-circle-idx={i}
+                pathLength="1"
                 d={handCircle(c.cx, c.cy, c.rx, c.ry, c.rot)}
                 stroke="#9A1414"
                 fill="none"
                 strokeWidth={i === 0 ? 2.2 : 1.7}
                 strokeLinecap="round"
-                style={{ filter: "drop-shadow(0 0 3px rgba(154,20,20,0.36))" }}
+                style={{
+                  filter: "drop-shadow(0 0 3px rgba(154,20,20,0.36))",
+                  strokeDasharray: "1",
+                  strokeDashoffset: "0",
+                }}
               />
             ))}
 
@@ -490,7 +772,99 @@ export function S12InvestigationBoard() {
               "radial-gradient(ellipse 70% 65% at 50% 50%, rgba(245,228,185,0.07) 0%, transparent 100%)",
           }}
         />
+
       </div>
+
+      {/* ── Nikolai's FBI portrait — crossfade target for the investigative-
+          focus sequence above. Deliberately a *sibling* of stickyRef, not
+          nested inside it: stickyRef carries a CSS `filter` (for the
+          board's own blur-in/out), and per spec any non-"none" filter on an
+          ancestor makes that ancestor the containing block for `position:
+          fixed` descendants — trapping this overlay inside stickyRef's own
+          (lower) stacking context, where no z-index on this element could
+          ever beat FBISection's separately-positioned fixed overlay, no
+          matter how high. Living outside stickyRef lets this genuinely
+          escape to the true viewport, where zIndex:51 correctly beats
+          FBISection's zIndex:50. Fixed/full-viewport outer wrapper (opacity
+          only) so it can crossfade independent of the board's own
+          coordinate system; the inner wrapper is sized in JS to the exact
+          contain-fit rect of the poster (see containRect()) so "scale: 1"
+          shows the complete, uncropped image rather than a viewport-cover
+          crop of it — needed for the dedicated full-poster hold state.
+          Starts fully transparent; a single instance, never duplicated. */}
+      <div
+        ref={wantedPortraitRef}
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 51,
+          opacity: 0,
+          pointerEvents: "none",
+          overflow: "hidden",
+          // The contain-fit inner box (see containRect()) doesn't
+          // necessarily cover every pixel of the viewport if the poster's
+          // own aspect ratio doesn't match the screen's — this fills that
+          // letterbox margin so the standalone poster state reads as a
+          // true full-screen page, not a window with FBISection's own
+          // fade-in showing through the edges.
+          background: "#0d0b09",
+        }}
+      >
+        <div ref={wantedInnerRef} style={{ position: "absolute", willChange: "transform, filter" }}>
+          <Image
+            src={WANTED_SRC}
+            alt="FBI Wanted poster — the man identified"
+            fill
+            unoptimized
+            style={{ objectFit: "cover" }}
+          />
+
+          {/* Hand-drawn red investigation circle around the Hoover / FBI
+              signature block — same drawn-in technique used elsewhere on
+              the board. Shares wantedInner's own box exactly (viewBox
+              matches the poster's natural pixel size), so it stays
+              pixel-locked to the text at any scale/viewport. */}
+          <svg
+            aria-hidden="true"
+            viewBox={`0 0 ${WANTED_NATURAL_W} ${WANTED_NATURAL_H}`}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
+          >
+            <path
+              ref={hooverCircleRef}
+              pathLength="1"
+              d={handCircle(HOOVER_CIRCLE.cx, HOOVER_CIRCLE.cy, HOOVER_CIRCLE.rx, HOOVER_CIRCLE.ry, HOOVER_CIRCLE.rot)}
+              stroke="#9A1414"
+              fill="none"
+              strokeWidth={2.4}
+              strokeLinecap="round"
+              style={{
+                filter: "drop-shadow(0 0 3px rgba(154,20,20,0.36))",
+                strokeDasharray: "1",
+                strokeDashoffset: "1",
+                opacity: 0,
+              }}
+            />
+          </svg>
+        </div>
+      </div>
+
+      {/* ── Brief exposure-flash pulse, timed to the crossfade midpoint —
+          a soft veil, not a full white overlay. Same sibling-of-stickyRef
+          reasoning as the portrait above. ────────────────────────────────── */}
+      <div
+        ref={crossfadeFlashRef}
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 52,
+          opacity: 0,
+          pointerEvents: "none",
+          background:
+            "radial-gradient(ellipse at 50% 50%, rgba(255,248,225,0.9) 0%, rgba(255,244,200,0.3) 45%, transparent 75%)",
+        }}
+      />
     </section>
   );
 }

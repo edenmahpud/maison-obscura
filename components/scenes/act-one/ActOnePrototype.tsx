@@ -14,10 +14,11 @@ import { S09StarSection } from "./S09StarSection";
 import { S10PlaceSection } from "./S10PlaceSection";
 import { S11DressSection } from "./S11DressSection";
 import { S12InvestigationBoard } from "./S12InvestigationBoard";
-import { S12WantedTransition } from "./S12WantedTransition";
 import { FBISection } from "./FBISection";
 import { ArrestSection } from "./ArrestSection";
 import { ReverseTunnelSection } from "./ReverseTunnelSection";
+import { LifeSection } from "./LifeSection";
+import { MemorialSection } from "./MemorialSection";
 import { DesignModePanel } from "../../dev/DesignModePanel";
 import { initAudioManager, duckMusic, restoreMusic } from "@/lib/audio";
 import { useLazyVideoSrc } from "@/components/effects/useLazyVideoSrc";
@@ -432,10 +433,11 @@ export function ActOnePrototype() {
       <S10PlaceSection />
       <S11DressSection />
       <S12InvestigationBoard />
-      <S12WantedTransition />
       <FBISection />
       <ArrestSection />
       <ReverseTunnelSection />
+      <LifeSection />
+      <MemorialSection />
       {process.env.NODE_ENV !== "production" && <DesignModePanel />}
 
       {/* ── DEBUG TEST BUTTON — remove when sound is confirmed working ───────

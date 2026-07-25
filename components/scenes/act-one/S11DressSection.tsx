@@ -472,12 +472,26 @@ function SparkleCanvas({ mode, boostRef }: { mode: "subtle" | "intense"; boostRe
 
     const pool: Flare[] = [];
 
+    // Dense cluster flashes — only spawn once boosted (state 4). Much smaller
+    // and narrower-spread than the base flares above, so the escalation reads
+    // as "many small flashes crowding the dress" rather than "a few bigger
+    // blooms" — count carries the intensity, not size.
+    const sparkPool: Flare[] = [];
+    let nextSpark = Date.now();
+
+    // Star-like flash bursts — bright core + a few thin radiating rays, like
+    // a camera flash catching a sequin. Fired occasionally, layered on top of
+    // the denser sparks, concentrated on the same dress-centred cluster.
+    type Burst = { xr: number; yr: number; size: number; phase: number; decay: number; rot: number };
+    const bursts: Burst[] = [];
+    let nextBurst = Date.now();
+
     const spawn = (boost: number): Flare => ({
       xr:  gauss(0.50, mode === "subtle" ? 0.14 : 0.15),
       yr:  gauss(0.44, mode === "subtle" ? 0.25 : 0.27),
       rad: (mode === "subtle"
         ? 20 + Math.random() * 60
-        : 35 + Math.random() * 130) * (1 + boost * 2.2),
+        : 35 + Math.random() * 130) * (1 + boost * 0.6),
       phase: 1.0,
       decay: mode === "subtle"
         ? 0.88 + Math.random() * 0.05
@@ -485,9 +499,14 @@ function SparkleCanvas({ mode, boostRef }: { mode: "subtle" | "intense"; boostRe
       warm: Math.random() > 0.38,
     });
 
-    // Periodic full-canvas whiteout — only ever fires when boosted (state 4)
-    let megaPhase = 0;
-    let nextMega  = Date.now() + 1200;
+    const spawnSpark = (): Flare => ({
+      xr: gauss(0.50, 0.10),
+      yr: gauss(0.43, 0.17),
+      rad: 6 + Math.random() * 22,
+      phase: 1.0,
+      decay: 0.80 + Math.random() * 0.08,
+      warm: Math.random() > 0.5,
+    });
 
     // Pure radial gradient — no lines, no shapes, just soft circular light bleed
     const drawFlare = (x: number, y: number, rad: number, alpha: number, warm: boolean) => {
@@ -513,6 +532,40 @@ function SparkleCanvas({ mode, boostRef }: { mode: "subtle" | "intense"; boostRe
       ctx.restore();
     };
 
+    // Star-shaped burst — bright core + thin radiating rays. Reads as a
+    // distinct camera-flash glint against the softer, rounder flares/sparks.
+    const drawStarBurst = (x: number, y: number, size: number, alpha: number, rot: number) => {
+      if (alpha < 0.01) return;
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+
+      const core = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 0.22);
+      core.addColorStop(0, `rgba(255,255,255,${alpha.toFixed(3)})`);
+      core.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(0, 0, size * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+
+      const rays = 5 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < rays; i++) {
+        const a   = (Math.PI * 2 * i) / rays + Math.random() * 0.3;
+        const len = size * (0.55 + Math.random() * 0.45);
+        const grad = ctx.createLinearGradient(0, 0, Math.cos(a) * len, Math.sin(a) * len);
+        grad.addColorStop(0, `rgba(255,255,255,${(alpha * 0.85).toFixed(3)})`);
+        grad.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 1.4 + Math.random() * 1.6;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+        ctx.stroke();
+      }
+      ctx.restore();
+    };
+
     const MAX_POOL = mode === "subtle" ? 30 : 70;
     const SPAWN_MS = mode === "subtle" ? 80 : 20;
 
@@ -529,11 +582,11 @@ function SparkleCanvas({ mode, boostRef }: { mode: "subtle" | "intense"; boostRe
       if (w === 0 || h === 0) return;
 
       const boost = boostRef?.current?.value ?? 0;
-      // Many more, much denser flares at full boost. (Tuned back slightly
-      // from an earlier pass that stacked so many simultaneous "screen"
-      // layers the canvas locked permanently at pure white with zero
-      // temporal variation — that reads as a stuck frame, not a flash.)
-      const effMaxPool  = MAX_POOL + Math.round(boost * 55);
+      // Denser flares at full boost — count carries the escalation now (see
+      // spawn()'s reduced radius scaling above), not size. Kept modest here —
+      // the dedicated spark/burst cluster below is what carries most of the
+      // last-page density, so this base layer doesn't also saturate the canvas.
+      const effMaxPool  = MAX_POOL + Math.round(boost * 15);
       const effSpawnMs  = SPAWN_MS / (1 + boost * 3.2);
 
       while (pool.length < effMaxPool && now >= nextSpawn) {
@@ -543,15 +596,17 @@ function SparkleCanvas({ mode, boostRef }: { mode: "subtle" | "intense"; boostRe
 
       ctx.clearRect(0, 0, w, h);
 
-      // Intense: large persistent bloom centred on the dress — fabric core never
-      // fully dims between individual flares; two overlapping pulses keep it alive.
-      // Amplitude/radius scale with `boost` for the last page's overexposed look.
+      // Intense: soft persistent bloom centred on the dress — a base glow
+      // for states 1–3. Recedes as the last-page flash cluster ramps up
+      // (rather than adding to it) so that cluster, not this ambient glow,
+      // is what visually buries the dress — otherwise the two combine into
+      // the same "static panel" look the flat whiteout used to have.
       if (mode === "intense") {
         const t  = now / 1000;
-        const pb = (0.09 + Math.sin(t * 1.85) * 0.052 + Math.sin(t * 3.20) * 0.030) * (1 + boost * 3.2);
+        const pb = (0.09 + Math.sin(t * 1.85) * 0.052 + Math.sin(t * 3.20) * 0.030) * (1 - boost * 0.55);
         const cx = w * 0.50;
         const cy = h * 0.43;
-        const blm = ctx.createRadialGradient(cx, cy, 0, cx, cy, w * (0.32 + boost * 0.30));
+        const blm = ctx.createRadialGradient(cx, cy, 0, cx, cy, w * (0.28 - boost * 0.06));
         blm.addColorStop(0,    `rgba(255,255,245,${Math.min(1, pb).toFixed(3)})`);
         blm.addColorStop(0.40, `rgba(255,252,230,${Math.min(1, pb * 0.46).toFixed(3)})`);
         blm.addColorStop(0.80, `rgba(255,248,205,${Math.min(1, pb * 0.13).toFixed(3)})`);
@@ -570,27 +625,48 @@ function SparkleCanvas({ mode, boostRef }: { mode: "subtle" | "intense"; boostRe
         drawFlare(f.xr * w, f.yr * h, f.rad, f.phase, f.warm);
       }
 
-      // Mega flash — periodic full-canvas whiteout, last page only (boost > 0).
-      // A real camera-flash overexposure: near-white "screen" wash that
-      // buries the dress and flares beneath it, firing far more often than
-      // baseline, then actually decaying back down between pulses — a small
-      // sustained haze (`boost * 0.16`) keeps the coat obscured at the low
-      // points too, but genuine peak-to-trough variation is what makes this
-      // read as repeated flashes rather than one frozen overexposed frame.
+      // Dense flash cluster — last page only (boost > 0). Many small,
+      // overlapping sparks plus occasional star-bursts, tightly clustered
+      // over the dress silhouette, replacing what used to be a single flat
+      // full-canvas whiteout. The dress stays underneath, just crowded out
+      // by the clutter of flashes rather than buried under one solid wash.
       if (boost > 0.05) {
-        if (now >= nextMega) {
-          megaPhase = 1.0;
-          nextMega = now + (700 + Math.random() * 900) / (1 + boost * 3.2);
+        const sparkMax    = Math.round(8 + boost * 30);
+        const sparkSpawnMs = 90 / (1 + boost * 3.2);
+        while (sparkPool.length < sparkMax && now >= nextSpark) {
+          sparkPool.push(spawnSpark());
+          nextSpark = now + sparkSpawnMs + Math.random() * sparkSpawnMs * 0.8;
         }
-        megaPhase *= 0.90;
-        const a = Math.min(1, boost * 0.16 + megaPhase * boost * 0.92);
-        if (a > 0.01) {
-          ctx.save();
-          ctx.globalCompositeOperation = "screen";
-          ctx.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`;
-          ctx.fillRect(0, 0, w, h);
-          ctx.restore();
+        for (let i = sparkPool.length - 1; i >= 0; i--) {
+          const s = sparkPool[i];
+          s.phase *= s.decay;
+          if (s.phase < 0.01) { sparkPool.splice(i, 1); continue; }
+          drawFlare(s.xr * w, s.yr * h, s.rad, s.phase * (0.45 + boost * 0.35), s.warm);
         }
+
+        if (now >= nextBurst) {
+          bursts.push({
+            xr: gauss(0.50, 0.11),
+            yr: gauss(0.43, 0.19),
+            size: (40 + Math.random() * 70) * (0.7 + boost * 0.5),
+            phase: 1.0,
+            decay: 0.86 + Math.random() * 0.05,
+            rot: Math.random() * Math.PI * 2,
+          });
+          nextBurst = now + (300 + Math.random() * 340) / (1 + boost * 1.8);
+        }
+        for (let i = bursts.length - 1; i >= 0; i--) {
+          const b = bursts[i];
+          b.phase *= b.decay;
+          if (b.phase < 0.02) { bursts.splice(i, 1); continue; }
+          drawStarBurst(b.xr * w, b.yr * h, b.size, b.phase, b.rot);
+        }
+      } else if (sparkPool.length > 0 || bursts.length > 0) {
+        // Scrolled back out of state 4 — let anything still fading finish
+        // decaying rather than snapping off (only matters for a fast reverse
+        // scroll caught mid-cluster).
+        sparkPool.length = 0;
+        bursts.length = 0;
       }
     };
     tick();
@@ -659,9 +735,6 @@ export function S11DressSection() {
   // New state-4 elements — title, red guide lines, decorative squiggle
   const lineTopRef    = useRef<HTMLDivElement>(null);
   const lineLeftRef   = useRef<HTMLDivElement>(null);
-  const line3Ref      = useRef<HTMLDivElement>(null);
-  const line4Ref      = useRef<HTMLDivElement>(null);
-  const line5Ref      = useRef<HTMLDivElement>(null);
   const squigglePathRef = useRef<SVGPathElement>(null);
 
   // ── Mount 3D viewers ──────────────────────────────────────────────────────
@@ -847,12 +920,8 @@ export function S11DressSection() {
 
           // ── Red guide lines — draw in together with the content they annotate ──
           const paraLineT  = lerp01(p, P.S3_GONE, TW1_END);
-          const rightLineT = lerp01(p, GOLD_IN_S, GOLD_IN_E);
           if (lineTopRef.current)  lineTopRef.current.style.width  = `${(paraLineT * pctW(216)).toFixed(3)}%`;
           if (lineLeftRef.current) lineLeftRef.current.style.height = `${(paraLineT * pctH(772)).toFixed(3)}%`;
-          if (line3Ref.current) line3Ref.current.style.width = `${(rightLineT * pctW(221)).toFixed(3)}%`;
-          if (line4Ref.current) line4Ref.current.style.width = `${(rightLineT * pctW(277)).toFixed(3)}%`;
-          if (line5Ref.current) line5Ref.current.style.width = `${(rightLineT * pctW(296)).toFixed(3)}%`;
 
           // ── Last-page flash escalation — see mountViewer/SparkleCanvas ────
           // Purely scroll-driven ramp (not a timer): 0 through states 1–3,
@@ -1083,9 +1152,9 @@ export function S11DressSection() {
               ref={goldLineRef}
               style={{
                 position: "absolute",
-                left: `${(50 + pctW(560.5)).toFixed(3)}%`,
+                right: "4.64%",
                 top: `${(50 + pctH(152)).toFixed(3)}%`,
-                transform: "translate(-50%, -50%)",
+                transform: "translateY(-50%)",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "flex-end",
@@ -1128,11 +1197,6 @@ export function S11DressSection() {
                 One flash
               </span>
             </div>
-
-            {/* Red guide lines beside each row · Figma "Line 3/4/5" (1012:74/75/76) */}
-            <div ref={line3Ref} aria-hidden="true" style={{ position: "absolute", left: dvw(1718), top: `calc(${dvh(579)} - ${RED_INK_STROKE_WIDTH / 2}px)`, width: 0, height: `${RED_INK_STROKE_WIDTH}px`, background: RED_INK_COLOR, pointerEvents: "none" }} />
-            <div ref={line4Ref} aria-hidden="true" style={{ position: "absolute", left: dvw(1643), top: `calc(${dvh(702)} - ${RED_INK_STROKE_WIDTH / 2}px)`, width: 0, height: `${RED_INK_STROKE_WIDTH}px`, background: RED_INK_COLOR, pointerEvents: "none" }} />
-            <div ref={line5Ref} aria-hidden="true" style={{ position: "absolute", left: dvw(1643), top: `calc(${dvh(820)} - ${RED_INK_STROKE_WIDTH / 2}px)`, width: 0, height: `${RED_INK_STROKE_WIDTH}px`, background: RED_INK_COLOR, pointerEvents: "none" }} />
 
             {/* Decorative hand-drawn squiggle · Figma "Vector 22" (860:128) */}
             <div
@@ -1233,8 +1297,29 @@ export function S11DressSection() {
             <SparkleCanvas mode="subtle" />
           </div>
 
-          {/* ── Canvas C — 3d3.glb (states 3 + 4) ───────────────────────── */}
-          <div ref={wrapCRef} style={{ ...canvasWrap, opacity: 0 }}>
+          {/* ── Canvas C — 3d3.glb (states 3 + 4) ───────────────────────────
+              Masked with a soft elliptical fade (tighter horizontally than
+              vertically, since the frame itself is narrow/portrait) so the
+              rectangular canvas edge — most visible here because of the
+              last-page flash cluster reaching toward it — dissolves into the
+              dark page instead of reading as a hard-edged box. Scoped to
+              this canvas only (not the shared canvasWrap), so states 1/2
+              keep their current look. */}
+          <div
+            ref={wrapCRef}
+            style={{
+              ...canvasWrap,
+              opacity: 0,
+              WebkitMaskImage:
+                "radial-gradient(ellipse 60% 92% at 50% 46%, #000 0%, #000 38%, rgba(0,0,0,0.55) 62%, transparent 100%)",
+              maskImage:
+                "radial-gradient(ellipse 60% 92% at 50% 46%, #000 0%, #000 38%, rgba(0,0,0,0.55) 62%, transparent 100%)",
+              WebkitMaskRepeat: "no-repeat",
+              maskRepeat: "no-repeat",
+              WebkitMaskSize: "100% 100%",
+              maskSize: "100% 100%",
+            }}
+          >
             <canvas ref={canvasCRef} style={{ width: "100%", height: "100%", display: "block" }} />
             <SparkleCanvas mode="intense" boostRef={flashBoostRef} />
           </div>

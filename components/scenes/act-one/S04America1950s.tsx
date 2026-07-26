@@ -6,6 +6,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SectionOverlayTitle } from "@/components/effects/SectionOverlayTitle";
 import { duckMusic, restoreMusic } from "@/lib/audio";
+import { useLazyVideoSrc } from "@/components/effects/useLazyVideoSrc";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -108,6 +109,9 @@ export function S04America1950s() {
   // Commercial 2 — autoplay muted; click toggles sound (not play/pause)
   const c2VideoRef    = useRef<HTMLVideoElement | null>(null);
   const [c2Unmuted, setC2Unmuted] = useState(false);
+
+  useLazyVideoSrc(tvVideoRef, sectionRef, "/assets/happy/commercial.mp4");
+  useLazyVideoSrc(c2VideoRef, sectionRef, "/assets/happy/commercial2.mp4");
   const c2UnmutedRef  = useRef(false); // mirrors c2Unmuted for use inside GSAP closures
 
   // ── TV sound unlock ───────────────────────────────────────────────────────
@@ -664,7 +668,6 @@ export function S04America1950s() {
             <div style={{ position: "relative", transform: "rotate(-3.29deg)", transformOrigin: "center" }}>
               <video
                 ref={c2VideoRef}
-                src="/assets/happy/commercial2.mp4"
                 autoPlay playsInline muted loop
                 style={{ width: "497px", height: "280px", objectFit: "cover", display: "block" }}
               />
@@ -803,7 +806,6 @@ export function S04America1950s() {
             <div style={{ transform: "rotate(6.71deg)", transformOrigin: "center" }}>
               <video
                 ref={tvVideoRef}
-                src="/assets/happy/commercial.mp4"
                 autoPlay muted loop playsInline
                 style={{ width: "534px", height: "401px", objectFit: "cover", display: "block" }}
               />
@@ -824,7 +826,7 @@ export function S04America1950s() {
         }}
       >
         <Image
-          src="/assets/happy/happy10.png" alt="The Perfect Decade"
+          src="/assets/S04-1950s-america/the_perfect1.png" alt="The Perfect Decade"
           fill sizes="100vw" className="object-cover" priority
         />
       </div>

@@ -6,6 +6,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { playSfx } from "@/lib/audio";
 import { RED_INK_COLOR, RED_INK_STROKE_WIDTH } from "@/components/effects/redInk";
+import { useLazyVideoSrc } from "@/components/effects/useLazyVideoSrc";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -122,6 +123,8 @@ function eio(t: number): number {
 export function S10PlaceSection() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const videoRef   = useRef<HTMLVideoElement | null>(null);
+
+  useLazyVideoSrc(videoRef, sectionRef, "/assets/place/place.mp4");
   const streetRef  = useRef<HTMLDivElement | null>(null);
   const entryRef   = useRef<HTMLDivElement | null>(null);
   const p1IntRef   = useRef<HTMLDivElement | null>(null);
@@ -281,7 +284,6 @@ export function S10PlaceSection() {
         >
           <video
             ref={videoRef}
-            src="/assets/Place/place.mp4"
             muted loop playsInline preload="auto"
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
           />
@@ -310,7 +312,7 @@ export function S10PlaceSection() {
             {/* 2a. Building facade (bottom of stack) */}
             <div style={{ position: "absolute", inset: 0, zIndex: 1 }}>
               <Image
-                src="/assets/Place/entry-bg.png"
+                src="/assets/place/entry-bg.png"
                 alt="Tailor shop entrance"
                 fill sizes="100vw"
                 style={{ objectFit: "fill" }}
@@ -329,7 +331,7 @@ export function S10PlaceSection() {
               }}
             >
               <Image
-                src="/assets/Place/interior-preview.png"
+                src="/assets/place/interior-preview.png"
                 alt="" aria-hidden fill sizes="100vw"
                 style={{ objectFit: "fill" }}
               />
@@ -365,7 +367,7 @@ export function S10PlaceSection() {
                 }}
               >
                 <Image
-                  src="/assets/Place/door-left.png"
+                  src="/assets/place/door-left.png"
                   alt="" aria-hidden fill sizes="15vw"
                   style={{ objectFit: "cover", objectPosition: "center" }}
                 />
@@ -382,7 +384,7 @@ export function S10PlaceSection() {
                 }}
               >
                 <Image
-                  src="/assets/Place/door-right.png"
+                  src="/assets/place/door-right.png"
                   alt="" aria-hidden fill sizes="15vw"
                   style={{ objectFit: "cover", objectPosition: "center" }}
                 />
@@ -409,7 +411,7 @@ export function S10PlaceSection() {
           }}
         >
           <Image
-            src="/assets/Place/interior-preview.png"
+            src="/assets/place/interior-preview.png"
             alt="Maison Obscura interior"
             fill sizes="100vw"
             style={{ objectFit: "cover" }}

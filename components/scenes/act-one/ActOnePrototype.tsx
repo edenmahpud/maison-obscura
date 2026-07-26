@@ -14,12 +14,14 @@ import { S09StarSection } from "./S09StarSection";
 import { S10PlaceSection } from "./S10PlaceSection";
 import { S11DressSection } from "./S11DressSection";
 import { S12InvestigationBoard } from "./S12InvestigationBoard";
-import { S12WantedTransition } from "./S12WantedTransition";
 import { FBISection } from "./FBISection";
 import { ArrestSection } from "./ArrestSection";
 import { ReverseTunnelSection } from "./ReverseTunnelSection";
+import { LifeSection } from "./LifeSection";
+import { MemorialSection } from "./MemorialSection";
 import { DesignModePanel } from "../../dev/DesignModePanel";
 import { initAudioManager, duckMusic, restoreMusic } from "@/lib/audio";
+import { useLazyVideoSrc } from "@/components/effects/useLazyVideoSrc";
 
 // ── SOUND CONTROLS ────────────────────────────────────────────────────────────
 // Asset path served from /public. Edit here to swap the audio file.
@@ -94,6 +96,8 @@ export function ActOnePrototype() {
   const tunnelVideoWrapRef   = useRef<HTMLDivElement | null>(null);
   const tunnelVideoRef       = useRef<HTMLVideoElement | null>(null);
   const transitionOverlayRef = useRef<HTMLDivElement | null>(null);
+
+  useLazyVideoSrc(tunnelVideoRef, introRef, "/assets/tunnel.mp4");
 
   // ── Year / exit overlay refs ──────────────────────────────────────────────
   const year2026Ref   = useRef<HTMLDivElement | null>(null);
@@ -357,7 +361,6 @@ export function ActOnePrototype() {
             >
               <video
                 ref={tunnelVideoRef}
-                src="/assets/tunnel.mp4"
                 muted
                 playsInline
                 preload="auto"
@@ -430,10 +433,11 @@ export function ActOnePrototype() {
       <S10PlaceSection />
       <S11DressSection />
       <S12InvestigationBoard />
-      <S12WantedTransition />
       <FBISection />
       <ArrestSection />
       <ReverseTunnelSection />
+      <LifeSection />
+      <MemorialSection />
       {process.env.NODE_ENV !== "production" && <DesignModePanel />}
 
       {/* ── DEBUG TEST BUTTON — remove when sound is confirmed working ───────

@@ -3,6 +3,7 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useLazyVideoSrc } from "@/components/effects/useLazyVideoSrc";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -26,7 +27,7 @@ function isDesignMode() {
 
 // ── Reverse tunnel — the same tunnel.mp4 asset scrubbed backwards, last
 // frame to first frame, as the user scrolls forward: returning from the
-// past (1957) back to the present (2026).
+// past (1957) forward to 2023.
 //
 // Scroll map (section height 480vh):
 //
@@ -37,7 +38,7 @@ function isDesignMode() {
 //   0   –1.2  this whole layer fades in over ArrestSection fading out beneath
 //   0   –0.4  "1957" fades in — the tunnel starts on the video's last frame
 //   1.2 –2.5  "1957" fades out as the reverse scrub gets underway
-//   6.0 –7.5  "2026" fades in as the tunnel nears the video's first frame
+//   6.0 –7.5  "2023" fades in as the tunnel nears the video's first frame
 //   7.5 –8    hold before the section releases
 //
 export function ReverseTunnelSection() {
@@ -46,6 +47,8 @@ export function ReverseTunnelSection() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const year1957Ref = useRef<HTMLDivElement | null>(null);
   const year2026Ref = useRef<HTMLDivElement | null>(null);
+
+  useLazyVideoSrc(videoRef, sectionRef, "/assets/tunnel.mp4");
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -131,7 +134,6 @@ export function ReverseTunnelSection() {
       >
         <video
           ref={videoRef}
-          src="/assets/tunnel.mp4"
           muted
           playsInline
           preload="auto"
@@ -142,7 +144,7 @@ export function ReverseTunnelSection() {
 
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 10 }}>
           <div ref={year1957Ref} className="font-cormorant italic" style={YEAR_STYLE}>1957</div>
-          <div ref={year2026Ref} className="font-cormorant italic" style={YEAR_STYLE}>2026</div>
+          <div ref={year2026Ref} className="font-cormorant italic" style={YEAR_STYLE}>2023</div>
         </div>
       </div>
     </section>

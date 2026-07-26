@@ -198,13 +198,21 @@ export function FBISection() {
     <section
       ref={sectionRef}
       aria-label="FBI Section"
-      style={{ position: "relative", height: "540vh", background: "#181818", marginTop: "-50vh" }}
+      style={{ position: "relative", height: "540vh", background: "#181818", marginTop: "-400vh" }}
     >
-      {/* Permanently position:fixed with an opacity fade-in — same technique
-          used in S12WantedTransition — so there is no CSS-sticky "slide up
-          into place" run-up and therefore no seam/duplicate risk. Higher
-          z-index than S12WantedTransition's own fixed layer (40) so this
-          crossfades in on top of it as the wanted poster blurs out beneath. */}
+      {/* Permanently position:fixed with an opacity fade-in so there is no
+          CSS-sticky "slide up into place" run-up and therefore no seam/
+          duplicate risk. Follows S12InvestigationBoard directly — its
+          investigative-focus sequence now continues straight into this
+          section rather than reversing back to the board (see
+          S12InvestigationBoard's own comment). This section's zIndex (50) is
+          lower than the FBI-portrait/Nikolai-photo layers there (51/53), so
+          it can safely start fading in this early without showing through —
+          it stays hidden underneath until that portrait dissolves away.
+          -400vh gives this fade-in a long head start (beginning around when
+          the zoom onto Nikolai completes) so it's already fully resolved
+          well before the portrait finishes fading, with no dark gap between
+          them. */}
       <div
         ref={stickyRef}
         style={{

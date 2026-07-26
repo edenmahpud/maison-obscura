@@ -5,6 +5,7 @@ import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { RED_INK_COLOR, RED_INK_STROKE_WIDTH } from "@/components/effects/redInk";
+import { useLazyVideoSrc } from "@/components/effects/useLazyVideoSrc";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -56,6 +57,8 @@ export function S07ColdSection() {
   const ovalRef      = useRef<SVGPathElement | null>(null);
   const line2Ref     = useRef<SVGLineElement | null>(null);
   const line3Ref     = useRef<SVGLineElement | null>(null);
+
+  useLazyVideoSrc(videoRef, sectionRef, "/assets/cold/video.mp4");
 
   // ── Sad9 relay: S06 bridge → fixed overlay → S07 dest ────────────────────
   useEffect(() => {
@@ -517,7 +520,6 @@ export function S07ColdSection() {
       >
         <video
           ref={videoRef}
-          src="/assets/cold/video.mp4"
           muted
           loop
           playsInline

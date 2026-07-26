@@ -136,6 +136,7 @@ export function FlashIntro() {
   const worldOfRef    = useRef<HTMLHeadingElement | null>(null);
   const burstRef      = useRef<HTMLDivElement | null>(null);
   const logoRef       = useRef<HTMLDivElement | null>(null);
+  const scrollCueRef  = useRef<HTMLDivElement | null>(null);
 
   const mNX     = useRef(0);
   const mNY     = useRef(0);
@@ -196,6 +197,12 @@ export function FlashIntro() {
         onUpdate: (self) => {
           const p = self.progress;
           progRef.current = p;
+
+          // ── "SCROLL" cue — present at rest, fades out quickly as soon as the
+          // user starts scrolling (well before the flash itself takes over).
+          if (scrollCueRef.current) {
+            scrollCueRef.current.style.opacity = String(0.55 * (1 - clamp(p / 0.05, 0, 1)));
+          }
 
           // ── Reduced motion fallback ─────────────────────────────────────────
           if (reduced) {
@@ -657,6 +664,42 @@ export function FlashIntro() {
             pointerEvents: "none",
           }}
         />
+
+        {/* ── "SCROLL" cue — bottom center, small and minimal. Fade-out on
+            scroll is driven on the wrapper (JS, via ScrollTrigger progress);
+            the breathing motion lives on the inner <p> (CSS keyframe) so the
+            two don't fight over the `opacity` property. Reuses the same
+            mo-scroll-cue keyframe already defined in globals.css. */}
+        <div
+          ref={scrollCueRef}
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: "50%", bottom: "40px",
+            transform: "translateX(-50%)",
+            opacity: 0.55,
+            zIndex: 40,
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        >
+          <p
+            className="fi-anim"
+            style={{
+              margin: 0,
+              fontFamily: "var(--font-cormorant-garamond), serif",
+              fontWeight: 400,
+              fontSize: "20px",
+              letterSpacing: "0.2em",
+              color: "#FCF1DA",
+              textAlign: "center",
+              textTransform: "uppercase",
+              animation: "mo-scroll-cue 3.8s ease-in-out infinite",
+            }}
+          >
+            Scroll
+          </p>
+        </div>
 
       </div>
       {/* end sticky */}

@@ -128,6 +128,29 @@ export function ArrestSection() {
             style={{ objectFit: "cover" }}
           />
           <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)" }} />
+
+          {/* ── Two red case-file lines (Figma nodes 1186:186 / 1186:187) ──
+              Nested inside the same zooming layer as the photo, matching
+              Figma's own grouping, so they scale/pan with it as if drawn
+              directly on the print. */}
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: 0, top: `${(488 / BOARD_H) * 100}%`,
+              width: `${(653.001 / BOARD_W) * 100}%`, height: 1,
+              background: "#FF0000",
+            }}
+          />
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: `${(697 / BOARD_W) * 100}%`, top: `${(608 / BOARD_H) * 100}%`,
+              width: 1, height: `${(653.001 / BOARD_H) * 100}%`,
+              background: "#FF0000",
+            }}
+          />
         </div>
 
         <div aria-hidden="true" className="mo-archival-grain" style={{ position: "absolute", inset: 0 }} />
@@ -136,17 +159,17 @@ export function ArrestSection() {
         <div
           style={{
             position: "absolute",
-            left: `${(561 / BOARD_W) * 100}%`, top: `${(381 / BOARD_H) * 100}%`,
-            width: `${(820 / BOARD_W) * 100}%`, height: `${(159 / BOARD_H) * 100}%`,
+            left: `${(673.157 / BOARD_W) * 100}%`, top: `${(433 / BOARD_H) * 100}%`,
+            width: `${(489.156 / BOARD_W) * 100}%`, height: `${(106.724 / BOARD_H) * 100}%`,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}
         >
           <p
             className="font-cormorant"
             style={{
-              margin: 0, whiteSpace: "nowrap", fontWeight: 600,
-              fontSize: "clamp(2.5rem, 6.2vw, 7.5rem)",
-              color: "#fff", letterSpacing: "-0.05em",
+              margin: 0, whiteSpace: "nowrap", fontWeight: 600, fontStyle: "italic",
+              fontSize: "clamp(2.5rem, 4.12vw, 7.5rem)", lineHeight: 1.32,
+              color: "#fff", letterSpacing: "-0.02em",
             }}
           >
             {Array.from(TITLE).map((ch, i) => (
@@ -161,16 +184,16 @@ export function ArrestSection() {
         <div
           style={{
             position: "absolute",
-            left: `${(598 / BOARD_W) * 100}%`, top: `${(556 / BOARD_H) * 100}%`,
-            width: `${(747 / BOARD_W) * 100}%`, height: `${(58 / BOARD_H) * 100}%`,
+            left: `${(687.078 / BOARD_W) * 100}%`, top: `${(539 / BOARD_H) * 100}%`,
+            width: `${(461.078 / BOARD_W) * 100}%`, height: `${(53.683 / BOARD_H) * 100}%`,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}
         >
           <p
-            className="font-courier"
+            className="font-cormorant"
             style={{
-              margin: 0, whiteSpace: "nowrap",
-              fontSize: "clamp(1rem, 2.2vw, 2.7rem)",
+              margin: 0, whiteSpace: "nowrap", fontWeight: 600,
+              fontSize: "clamp(1rem, 2.06vw, 2.7rem)", lineHeight: 1.32,
               color: "#fff", letterSpacing: "-0.02em",
             }}
           >

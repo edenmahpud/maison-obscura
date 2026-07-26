@@ -155,6 +155,25 @@ body {
   }
 }
 
+/* ── Typewriter cursor — a hard on/off blink (not a smooth fade), matching
+   a classic typewriter/terminal caret. Caller toggles `display` to move it
+   between lines; this class only owns the blink itself. ──────────────────── */
+@keyframes mo-cursor-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.mo-typewriter-cursor {
+  display: inline-block;
+  animation: mo-cursor-blink 1s steps(1) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mo-grain::after,
   .mo-flash {

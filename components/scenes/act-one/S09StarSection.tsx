@@ -424,7 +424,7 @@ export function S09StarSection() {
         {/* ── star-video · parallax 15 ──────────────────────────────────────── */}
         <div ref={ir(15)} data-design-star-key="img-15" style={{ position: "absolute", left: vw(275.35), top: btop(2601.11, 320.042), width: vw(562.713), height: vy(320.042), zIndex: 4 }}>
           <div data-s09 style={{ width: "100%", height: "100%" }}>
-            <video ref={videoRef} muted loop playsInline preload="auto"
+            <video ref={videoRef} muted loop playsInline preload="metadata"
               style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
           </div>
         </div>

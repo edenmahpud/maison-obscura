@@ -284,7 +284,7 @@ export function S10PlaceSection() {
         >
           <video
             ref={videoRef}
-            muted loop playsInline preload="auto"
+            muted loop playsInline preload="metadata"
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
           />
         </div>

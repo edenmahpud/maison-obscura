@@ -529,7 +529,7 @@ export function S06SadSection() {
                 ref={vid2Ref}
                 muted
                 playsInline
-                preload="auto"
+                preload="metadata"
                 style={{ width: "644px", height: "370.5px", display: "block" }}
               />
               <div aria-hidden="true" style={{
@@ -574,7 +574,7 @@ export function S06SadSection() {
                 ref={vid1Ref}
                 muted
                 playsInline
-                preload="auto"
+                preload="metadata"
                 style={{ width: "643.9px", height: "482.9px", display: "block" }}
               />
             </div>

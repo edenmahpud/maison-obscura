@@ -155,7 +155,9 @@ export function FlashIntro() {
     };
     window.addEventListener("mousemove", onMove);
 
+    let running = false;
     const tick = () => {
+      if (!running) return;
       const inf = Math.max(
         clamp(1 - progRef.current * 3.5, 0, 1),
         progRef.current > FLASH_SETTLE_END ? 0.06 : 0,
@@ -171,11 +173,25 @@ export function FlashIntro() {
         bloomHookRef.current.style.transform = `translate(${tx * BLOOM_FOLLOW}px,${ty * BLOOM_FOLLOW}px)`;
       rafId.current = requestAnimationFrame(tick);
     };
-    rafId.current = requestAnimationFrame(tick);
+
+    // Only run the mouse-parallax loop while the intro is on screen — it's the
+    // opening scene, so once the user scrolls past there's nothing to animate.
+    const setRunning = (next: boolean) => {
+      if (next === running) return;
+      running = next;
+      if (running) rafId.current = requestAnimationFrame(tick);
+      else cancelAnimationFrame(rafId.current);
+    };
+    const io = new IntersectionObserver(
+      ([entry]) => setRunning(entry.isIntersecting),
+      { rootMargin: "200px 0px" },
+    );
+    if (wrapperRef.current) io.observe(wrapperRef.current);
 
     return () => {
       window.removeEventListener("mousemove", onMove);
       cancelAnimationFrame(rafId.current);
+      io.disconnect();
     };
   }, []);
 

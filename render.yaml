@@ -1,0 +1,18 @@
+# Render Web Service (Node) — replaces the old Static Site so that Next.js can
+# optimize images on the fly (WebP/AVIF, resizing) instead of shipping every
+# PNG/JPG at full size. Do NOT set STATIC_EXPORT here: leaving it unset keeps
+# next.config.ts on the server path.
+#
+# NOTE: an existing Static Site can't be converted in place. In the Render
+# dashboard create a new Blueprint/Web Service from this file (or a new Web
+# Service pointing at this repo) and move the custom domain over to it.
+services:
+  - type: web
+    name: maison-obscura
+    runtime: node
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"

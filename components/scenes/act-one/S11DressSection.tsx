@@ -46,12 +46,16 @@ type FlashMode = "standard" | "subtle" | "intense";
 // canvas/mode="intense" instance, is completely unaffected.
 type Boost = { value: number };
 
+// A mounted viewer: dispose() tears it down; setRunning() pauses/resumes its
+// render loop so it costs nothing while the dress section is off-screen.
+type Viewer = { dispose: () => void; setRunning: (running: boolean) => void };
+
 async function mountViewer(
   canvas: HTMLCanvasElement,
   src: string,
   mode: FlashMode = "standard",
   boostObj?: Boost,
-): Promise<() => void> {
+): Promise<Viewer> {
   const [THREE, { GLTFLoader }] = await Promise.all([
     import("three"),
     import("three/examples/jsm/loaders/GLTFLoader.js"),
@@ -143,6 +147,10 @@ async function mountViewer(
   let baseY = 0;
   let raf = 0;
   let dead = false;
+  // Start paused — the caller (S11DressSection) drives running via an
+  // IntersectionObserver so this render loop only burns CPU/GPU while the
+  // dress section is near the viewport, not from first paint of the page.
+  let running = false;
 
   const syncSize = () => {
     const el = canvas.parentElement;
@@ -189,10 +197,13 @@ async function mountViewer(
     };
     if (mode === "subtle")  applyReflection(0.18, 0.80, 0xfff8f0, 0.03);
     if (mode === "intense") applyReflection(0.04, 0.96, 0xfff8f0, 0.08);
+    // Paint one frame immediately so the dress is visible even if the model
+    // finishes loading while the loop is paused (offscreen).
+    if (!running) renderer.render(scene, camera);
   });
 
   const tick = () => {
-    if (dead) return;
+    if (dead || !running) return;
     raf = requestAnimationFrame(tick);
     if (root) {
       root.rotation.y += 0.003;
@@ -301,14 +312,24 @@ async function mountViewer(
 
     renderer.render(scene, camera);
   };
-  tick();
 
-  return () => {
-    dead = true;
-    cancelAnimationFrame(raf);
-    ro.disconnect();
-    renderer.dispose();
-    scene.clear();
+  const setRunning = (next: boolean) => {
+    if (dead || next === running) return;
+    running = next;
+    if (running) tick();
+    else cancelAnimationFrame(raf);
+  };
+
+  return {
+    dispose: () => {
+      dead = true;
+      running = false;
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      renderer.dispose();
+      scene.clear();
+    },
+    setRunning,
   };
 }
 
@@ -572,9 +593,12 @@ function SparkleCanvas({ mode, boostRef }: { mode: "subtle" | "intense"; boostRe
     let nextSpawn = Date.now();
     let rafId = 0;
     let alive = true;
+    // Paused until the canvas is near the viewport (see IntersectionObserver
+    // below) so this particle loop doesn't run while the dress is off-screen.
+    let running = false;
 
     const tick = () => {
-      if (!alive) return;
+      if (!alive || !running) return;
       rafId = requestAnimationFrame(tick);
       const now = Date.now();
       const w   = cv.width;
@@ -669,12 +693,24 @@ function SparkleCanvas({ mode, boostRef }: { mode: "subtle" | "intense"; boostRe
         bursts.length = 0;
       }
     };
-    tick();
+
+    const setRunning = (next: boolean) => {
+      if (!alive || next === running) return;
+      running = next;
+      if (running) tick();
+      else cancelAnimationFrame(rafId);
+    };
+    const io = new IntersectionObserver(
+      ([entry]) => setRunning(entry.isIntersecting),
+      { rootMargin: "300px 0px" },
+    );
+    io.observe(cv);
 
     return () => {
       alive = false;
       cancelAnimationFrame(rafId);
       ro.disconnect();
+      io.disconnect();
     };
   }, [mode, boostRef]);
 
@@ -738,30 +774,50 @@ export function S11DressSection() {
   const squigglePathRef = useRef<SVGPathElement>(null);
 
   // ── Mount 3D viewers ──────────────────────────────────────────────────────
+  // The three WebGL viewers (55 MB of GLBs + three live render loops) used to
+  // load and run from first paint of the whole page, even while the opening
+  // scene was on screen. We now gate them behind an IntersectionObserver on
+  // the section: the GLBs are only fetched once the section is near the
+  // viewport, and each render loop is paused whenever the section is off-screen.
   useEffect(() => {
-    let cleanA: (() => void) | null = null;
-    let cleanB: (() => void) | null = null;
-    let cleanC: (() => void) | null = null;
+    const section = sectionRef.current;
+    if (!section) return;
+
+    const viewers: Viewer[] = [];
+    let mounted = false;
+    let visible = false;
     let alive = true;
 
-    if (canvasARef.current)
-      mountViewer(canvasARef.current, "/assets/dress/3d1.glb", "standard").then((fn) => {
-        if (alive) cleanA = fn; else fn();
-      });
-    if (canvasBRef.current)
-      mountViewer(canvasBRef.current, "/assets/dress/3d2.glb", "subtle").then((fn) => {
-        if (alive) cleanB = fn; else fn();
-      });
-    if (canvasCRef.current)
-      mountViewer(canvasCRef.current, "/assets/dress/3d3.glb", "intense", flashBoostRef.current).then((fn) => {
-        if (alive) cleanC = fn; else fn();
-      });
+    const mount = () => {
+      if (mounted) return;
+      mounted = true;
+      const add = (v: Viewer) => {
+        if (!alive) { v.dispose(); return; }
+        viewers.push(v);
+        v.setRunning(visible);
+      };
+      if (canvasARef.current)
+        mountViewer(canvasARef.current, "/assets/dress/3d1.glb", "standard").then(add);
+      if (canvasBRef.current)
+        mountViewer(canvasBRef.current, "/assets/dress/3d2.glb", "subtle").then(add);
+      if (canvasCRef.current)
+        mountViewer(canvasCRef.current, "/assets/dress/3d3.glb", "intense", flashBoostRef.current).then(add);
+    };
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        visible = entry.isIntersecting;
+        if (visible) mount();
+        viewers.forEach((v) => v.setRunning(visible));
+      },
+      { rootMargin: "600px 0px" },
+    );
+    io.observe(section);
 
     return () => {
       alive = false;
-      cleanA?.();
-      cleanB?.();
-      cleanC?.();
+      io.disconnect();
+      viewers.forEach((v) => v.dispose());
     };
   }, []);
 

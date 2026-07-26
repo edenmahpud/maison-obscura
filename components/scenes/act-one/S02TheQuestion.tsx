@@ -21,11 +21,18 @@ const FADE_OUT_END   = 0.76;
 const VIDEO_VOLUME = 0.6;
 
 // Events that count as a "first interaction" and unlock browser audio.
-const UNLOCK_EVENTS = ["scroll", "wheel", "pointerdown", "touchstart", "keydown"];
+// Scroll and wheel are deliberately NOT here. Chrome does not treat them as
+// user activation, so unmuting on scroll produced a video that could never
+// play: `muted` flipped to false, then every play() was rejected with
+// NotAllowedError and the frozen first frame just sat there.
+const UNLOCK_EVENTS = ["pointerdown", "touchstart", "keydown"];
 
 export function S02TheQuestion({ progress }: S02TheQuestionProps) {
   const videoRef    = useRef<HTMLVideoElement>(null);
   const unlockedRef = useRef(false);
+  // Mirrors `shouldPlay` so the unlock handler — which is registered once and
+  // closes over the first render — can tell whether the scene is on screen.
+  const shouldPlayRef = useRef(false);
 
   const reveal         = clamp01((progress - REVEAL_START)   / (REVEAL_END   - REVEAL_START));
   const fadeOut        = clamp01((progress - FADE_OUT_START) / (FADE_OUT_END - FADE_OUT_START));
@@ -44,10 +51,12 @@ export function S02TheQuestion({ progress }: S02TheQuestionProps) {
 
   const shouldPlay = progress >= REVEAL_START && progress < FADE_OUT_END;
 
-  // ── Audio unlock — unmute on the first user interaction ──────────────────────
-  // Video starts muted (required for autoplay). The first scroll/click/key event
-  // is a trusted gesture that allows audio. We then flip muted=false and set
-  // a comfortable volume. Pattern mirrors S04's TV sound unlock.
+  // ── Audio unlock — unmute on the first real user interaction ─────────────────
+  // Video starts muted (required for autoplay). A click/tap/key is genuine user
+  // activation, so audio is allowed from inside this handler — and only from
+  // here. We unmute and immediately resume playback in the same turn, because
+  // that activation is what makes an unmuted play() legal. If the browser
+  // refuses anyway, fall straight back to muted rather than leave a dead frame.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -57,6 +66,12 @@ export function S02TheQuestion({ progress }: S02TheQuestionProps) {
       unlockedRef.current = true;
       video.muted  = false;
       video.volume = VIDEO_VOLUME;
+      if (shouldPlayRef.current) {
+        video.play().catch(() => {
+          video.muted = true;
+          video.play().catch(() => {});
+        });
+      }
       UNLOCK_EVENTS.forEach(t => window.removeEventListener(t, unlock));
     };
 
@@ -66,11 +81,21 @@ export function S02TheQuestion({ progress }: S02TheQuestionProps) {
 
   // ── Play / pause based on scroll visibility ───────────────────────────────────
   // Does NOT restart on every scroll tick — only fires when shouldPlay changes.
+  // The picture must never freeze: an unmuted play() is rejected outright until
+  // the visitor has actually interacted, so on failure we re-mute and retry.
+  // Muted playback is always permitted, so the scene plays silently until the
+  // first click/tap/key, then gains sound. Same fallback S06 already uses.
   useEffect(() => {
+    shouldPlayRef.current = shouldPlay;
     const video = videoRef.current;
     if (!video) return;
-    if (shouldPlay) { video.play().catch(() => {}); }
-    else            { video.pause(); }
+    if (shouldPlay) {
+      video.play().catch(() => {
+        video.muted = true;
+        video.play().catch(() => {});
+      });
+    }
+    else { video.pause(); }
   }, [shouldPlay]);
 
   return (

@@ -24,8 +24,11 @@ interface Piece {
 const PIECES: Piece[] = [
   // fbi4 — party scene with the erased/glowing figure.
   { src: "/assets/fbi/fbi4.png", alt: "Party scene, a figure erased in light", x: 892, y: 77, w: 615, h: 464, radius: 32 },
-  // fbi6 — the same WANTED poster already used in S12WantedTransition.
-  { src: "/assets/WANTED.png", alt: "FBI Wanted poster", x: 641, y: 205, w: 559, h: 540 },
+  // fbi6 — the same WANTED poster already used in S12InvestigationBoard, and
+  // the same WebP re-encode it loads (identical pixels, ~167 KB vs the PNG's
+  // ~1.29 MB). These render `unoptimized`, so without this the board would ship
+  // the full-size PNG a second time for a 559×540 slot.
+  { src: "/assets/WANTED.webp", alt: "FBI Wanted poster", x: 641, y: 205, w: 559, h: 540 },
   // fbi2 — the man in the coat and hat, glancing back.
   { src: "/assets/sad/sad7.png", alt: "A man in a coat and hat glancing back on the street", x: 127, y: 236, w: 227, h: 543, radius: 9 },
   // fbi5 — the street corner storefronts.

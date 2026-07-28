@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { preload } from "react-dom";
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -18,12 +19,33 @@ export const BOARD_H = 1000;
 // rather than a second, differently-cropped copy of the same evidence.
 const ARCHIVAL_FACE_X = 0.618; // Nikolai's face within star20.png (piece 19)
 const ARCHIVAL_FACE_Y = 0.205;
-const WANTED_SRC        = "/assets/WANTED.png";
+// WebP re-encode (983×950, q92, alpha preserved) at ~167 KB against the PNG's
+// ~1.29 MB — 7.7× lighter for a poster that gets magnified 6.7× at its
+// tightest, so the encode is deliberately high-quality rather than small. The
+// PNG stays on disk purely as a <picture> fallback.
+const WANTED_SRC        = "/assets/WANTED.webp";
+const WANTED_SRC_PNG    = "/assets/WANTED.png";
 const WANTED_NATURAL_W  = 983;
 const WANTED_NATURAL_H  = 950;
 const WANTED_FACE_X     = 0.855; // his FBI mugshot, frontal, within the poster
 const WANTED_FACE_Y     = 0.645;
 const ZOOM_WANTED       = 6.7;   // crossfade-matching tightness on the mugshot
+
+// The full-poster state rests at 90% of the stage rather than fitting it
+// edge-to-edge. The poster is 983×950 (≈1.03:1), so on any landscape viewport
+// an exact contain-fit is height-bound — its top and bottom edges land exactly
+// on the stage's `overflow: hidden` boundary, where a subpixel rounding error
+// or a mobile URL bar collapsing (which changes the fixed stage's real height
+// without changing the box already sized from it) shaves off the bottom of the
+// document. A deliberate margin means the poster is never one pixel away from
+// being clipped, and gives the held frame room to read as a document.
+const POSTER_MAX_FILL   = 0.9;
+
+// ZOOM_WANTED is expressed against a poster filling the stage edge-to-edge, so
+// shrinking the box to POSTER_MAX_FILL would widen the face close-up by the
+// same factor. Dividing it back out keeps the crossfade framing pixel-identical
+// to what it was before the poster gained its margin.
+const ZOOM_WANTED_FIT   = ZOOM_WANTED / POSTER_MAX_FILL;
 
 // Bottom-right signature block ("JOHN EDGAR HOOVER, DIRECTOR" / "Federal
 // Bureau of Investigation, Washington 25, D. C."), measured directly in the
@@ -32,16 +54,21 @@ const ZOOM_WANTED       = 6.7;   // crossfade-matching tightness on the mugshot
 // S12WantedTransition.
 const HOOVER_CIRCLE = { cx: 760, cy: 888, rx: 195, ry: 45, rot: -2 };
 
-// Rect (in viewport px) of an image rendered with object-fit: contain inside
-// a full-viewport box. Sizing the wrapper to exactly this rect — instead of
-// scaling a full-viewport box with object-fit:cover, which crops edges to
-// fill — means "scale: 1" shows the complete poster with nothing cropped
-// off, and every intermediate scale zooms/reveals against the image's own
-// true bounds rather than a viewport-cropped version of it.
-function containRect(naturalW: number, naturalH: number) {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const scale = Math.min(vw / naturalW, vh / naturalH);
+// Rect (in px) of an image rendered with object-fit: contain inside `stage`,
+// inset by POSTER_MAX_FILL. Sizing the wrapper to exactly this rect — instead
+// of scaling a full-viewport box with object-fit:cover, which crops edges to
+// fill — means "scale: 1" shows the complete poster with nothing cropped off,
+// and every intermediate scale zooms/reveals against the image's own true
+// bounds rather than a viewport-cropped version of it.
+//
+// Measured off the stage element itself, never window.innerWidth/Height: the
+// stage is what actually clips (`overflow: hidden`), and on mobile the two
+// disagree by the height of the browser chrome — a box sized from the window
+// then clipped by the stage loses the bottom of the poster.
+function containRect(stage: HTMLElement, naturalW: number, naturalH: number) {
+  const vw = stage.clientWidth;
+  const vh = stage.clientHeight;
+  const scale = Math.min((vw * POSTER_MAX_FILL) / naturalW, (vh * POSTER_MAX_FILL) / naturalH);
   const w = naturalW * scale;
   const h = naturalH * scale;
   return { w, h, left: (vw - w) / 2, top: (vh - h) / 2 };
@@ -196,8 +223,29 @@ export function S12InvestigationBoard() {
   // fades in as the board's own star20 piece (Nikolai's face) fades out.
   const wantedPortraitRef = useRef<HTMLDivElement | null>(null);
   const wantedInnerRef    = useRef<HTMLDivElement | null>(null);
+  const wantedImgRef      = useRef<HTMLImageElement | null>(null);
   const hooverCircleRef   = useRef<SVGPathElement | null>(null);
   const crossfadeFlashRef = useRef<HTMLDivElement | null>(null);
+
+  // Whether the poster has finished loading. A ref, not state: the crossfade
+  // ScrollTrigger reads it every frame and must not be torn down and rebuilt
+  // mid-scroll just because the flag flipped.
+  const posterReadyRef    = useRef(false);
+  const markPosterReady = () => {
+    if (posterReadyRef.current) return;
+    posterReadyRef.current = true;
+    // Re-run the crossfade's onUpdate against the current scroll position, so
+    // a gate that did fire releases on the next frame instead of waiting for
+    // the viewer to scroll again.
+    ScrollTrigger.update();
+  };
+
+  // Fetch the poster at page load, at high priority, rather than leaving it to
+  // next/image's default lazy loading — the sequence must never open on an
+  // image that is still in flight. `as: "image"` + type lets the browser skip
+  // the hint entirely if it can't decode WebP, in which case the <picture>
+  // fallback below fetches the PNG normally.
+  preload(WANTED_SRC, { as: "image", fetchPriority: "high", type: "image/webp" });
 
   // ── Scale board to fit viewport, never upscale ────────────────────────────
   useEffect(() => {
@@ -449,11 +497,24 @@ export function S12InvestigationBoard() {
     // Size the inner wrapper to the poster's exact contain-fit rect so
     // "scale: 1" shows the complete, uncropped image for the dedicated
     // full-poster hold state (see containRect()).
-    const wr = containRect(WANTED_NATURAL_W, WANTED_NATURAL_H);
-    wantedInner.style.width  = `${wr.w}px`;
-    wantedInner.style.height = `${wr.h}px`;
-    wantedInner.style.left   = `${wr.left}px`;
-    wantedInner.style.top    = `${wr.top}px`;
+    //
+    // Re-measured whenever the stage's own box changes — not just on window
+    // resize. A box sized once at mount goes stale the moment the viewport
+    // moves (device rotation, a desktop window resize, a mobile URL bar
+    // collapsing), and a stale box inside an `overflow: hidden` stage shows up
+    // as exactly the reported symptom: part of the document clipped away.
+    // ResizeObserver on the stage catches every one of those, including the
+    // mobile-chrome case that fires no resize event at all.
+    const fitPoster = () => {
+      const wr = containRect(wanted, WANTED_NATURAL_W, WANTED_NATURAL_H);
+      wantedInner.style.width  = `${wr.w}px`;
+      wantedInner.style.height = `${wr.h}px`;
+      wantedInner.style.left   = `${wr.left}px`;
+      wantedInner.style.top    = `${wr.top}px`;
+    };
+    fitPoster();
+    const fitObserver = new ResizeObserver(fitPoster);
+    fitObserver.observe(wanted);
 
     // Piece index 19 (star20.png, cx:1363, cy:188, w:258) is Nikolai & Eleanor's photo.
     const focusEl = board.querySelector<HTMLElement>("[data-piece-index='19']");
@@ -525,7 +586,15 @@ export function S12InvestigationBoard() {
 
         // C: crossfade progress from Nikolai's face to his FBI portrait.
         // Also never falls back on its own — same reasoning as F.
-        const C = ease(lerp01(p, P_ZOOM, P_CROSSFADE));
+        //
+        // Gated on the poster having actually decoded: until then C stays 0,
+        // which holds the previous visual state (Nikolai's face, fully opaque)
+        // rather than crossfading into a blank or half-painted document. The
+        // poster is preloaded at page load and this section is ~50 sections
+        // in, so in practice the gate never fires — it exists so a cold, slow
+        // connection degrades into a longer hold on Nikolai instead of an
+        // empty frame.
+        const C = posterReadyRef.current ? ease(lerp01(p, P_ZOOM, P_CROSSFADE)) : 0;
 
         // Combined "FBI portrait showing" amount — 0 early, 1 from the
         // crossfade onward (no automatic return to 0).
@@ -565,7 +634,7 @@ export function S12InvestigationBoard() {
         // independently fading in beneath at zIndex:50) rather than
         // dissolving back to the reassembled board or the cropped-zoom framing.
         const revealOut = ease(lerp01(p, P_CROSSFADE, P_REVEAL));
-        const wantedScale = ZOOM_WANTED - (ZOOM_WANTED - 1) * revealOut;
+        const wantedScale = ZOOM_WANTED_FIT - (ZOOM_WANTED_FIT - 1) * revealOut;
         wantedInner.style.transformOrigin = `${(WANTED_FACE_X * 100).toFixed(2)}% ${(WANTED_FACE_Y * 100).toFixed(2)}%`;
         wantedInner.style.transform = `scale(${wantedScale.toFixed(4)})`;
         const wantedFadeOut = 1 - ease(lerp01(p, P_HOLD2, 1));
@@ -591,7 +660,18 @@ export function S12InvestigationBoard() {
       },
     });
 
-    return () => { st.kill(); };
+    return () => { st.kill(); fitObserver.disconnect(); };
+  }, []);
+
+  // ── Poster preload / decode gate ──────────────────────────────────────────
+  // The <img> below is eager + high-priority, but a cached image can finish
+  // loading before React attaches its onLoad handler, so check `complete` on
+  // mount too — otherwise the gate above would latch shut on exactly the
+  // fastest case.
+  useEffect(() => {
+    const img = wantedImgRef.current;
+    if (!img) return;
+    if (img.complete && img.naturalWidth > 0) markPosterReady();
   }, []);
 
   const logo = PIECES[0];
@@ -812,13 +892,42 @@ export function S12InvestigationBoard() {
         }}
       >
         <div ref={wantedInnerRef} style={{ position: "absolute", willChange: "transform, filter" }}>
-          <Image
-            src={WANTED_SRC}
-            alt="FBI Wanted poster — the man identified"
-            fill
-            unoptimized
-            style={{ objectFit: "cover" }}
-          />
+          {/* A plain <picture>, not next/image: this needs a real WebP-with-
+              PNG-fallback pair, eager high-priority loading, and an onLoad the
+              crossfade gate can read — none of which next/image's `fill` +
+              `unoptimized` path gives (it defaults to loading="lazy", and
+              `unoptimized` opted out of the format negotiation next.config.ts
+              enables anyway).
+
+              object-fit: contain, never cover. The wrapper is already sized to
+              the poster's own aspect ratio so the two agree, but `cover` would
+              silently crop the difference the moment they disagreed by even a
+              rounding error — and this is the state whose entire job is
+              showing the document complete. */}
+          <picture>
+            <source srcSet={WANTED_SRC} type="image/webp" />
+            <img
+              ref={wantedImgRef}
+              src={WANTED_SRC_PNG}
+              alt="FBI Wanted poster — the man identified"
+              width={WANTED_NATURAL_W}
+              height={WANTED_NATURAL_H}
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
+              onLoad={markPosterReady}
+              // A failed decode must not strand the sequence holding on
+              // Nikolai forever — release the gate and let the crossfade run.
+              onError={markPosterReady}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+              }}
+            />
+          </picture>
 
           {/* Hand-drawn red investigation circle around the Hoover / FBI
               signature block — same drawn-in technique used elsewhere on

@@ -713,7 +713,7 @@ export function FlashIntro() {
               animation: "mo-scroll-cue 3.8s ease-in-out infinite",
             }}
           >
-            Scroll
+            Scroll Down
           </p>
         </div>
 

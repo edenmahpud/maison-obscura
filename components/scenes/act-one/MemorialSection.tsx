@@ -7,7 +7,8 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 gsap.registerPlugin(ScrollTrigger);
 
 // ── Canvas — matches the Figma frame (node 801:703) 1:1 ─────────────────────
-const BOARD_W = 1920;
+// Only the vertical axis is still referenced; the horizontal one went with the
+// arrow, whose width was the last thing measured against it.
 const BOARD_H = 1080;
 
 const GOLD = "#e7cea6";
@@ -58,28 +59,65 @@ const LINES: { text: string; style: LineStyle }[] = [
 //
 //   Once the section is reached (ScrollTrigger, once: true, independent of
 //   the fade above): the three lines type in sequence at ~45ms/char, a
-//   blinking cursor trailing whichever line is active, then the arrow
-//   fades in once typing is fully complete. This part is real-time and
-//   one-shot — it does not scrub or restart on further scrolling.
+//   blinking cursor trailing whichever line is active, then the "back to
+//   the beginning" button fades in once typing is fully complete. This part
+//   is real-time and one-shot — it does not scrub or restart on further
+//   scrolling.
 //
 export function MemorialSection() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const stickyRef = useRef<HTMLDivElement | null>(null);
   const textRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const cursorRefs = useRef<(HTMLSpanElement | null)[]>([]);
-  const arrowRef = useRef<HTMLDivElement | null>(null);
+  const returnWrapRef = useRef<HTMLDivElement | null>(null);
+  const veilRef = useRef<HTMLDivElement | null>(null);
+  const returningRef = useRef(false);
+
+  // ── "Back to the beginning" ───────────────────────────────────────────────
+  // Fade to the site's own base black, jump, fade back — rather than scrolling
+  // ~97,000px through every section, which would take minutes and replay the
+  // whole film backwards.
+  //
+  // The jump is a plain scrollTo with no hash and no history entry, so the URL
+  // never changes and nothing reloads: every scene is scroll-driven, so putting
+  // the scroll position back at 0 *is* putting the site back at the beginning.
+  const returnToBeginning = () => {
+    const veil = veilRef.current;
+    if (!veil || returningRef.current) return; // ignore repeat clicks mid-transition
+    returningRef.current = true;
+
+    gsap.timeline({ onComplete: () => { returningRef.current = false; } })
+      .to(veil, { autoAlpha: 1, duration: 0.32, ease: "power2.in" })
+      .add(() => {
+        // `instant` matters even though the page sets no scroll-behavior:
+        // a smooth jump of this distance is precisely what we're avoiding.
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+
+        // Hand every trigger the new scroll position, then finish the scrub
+        // tweens outright. Scrubbed triggers that drive a timeline ease toward
+        // their target over their scrub duration, so without this the opening
+        // would fade back in mid-rewind — visibly running the flash backwards.
+        // Triggers with no animation (the flash intro's own among them) update
+        // instantly and simply have no tween here to settle.
+        ScrollTrigger.update();
+        ScrollTrigger.getAll().forEach((st) => { st.getTween()?.progress(1); });
+        ScrollTrigger.update();
+      })
+      // A beat on black lets the settled opening paint before it's uncovered.
+      .to(veil, { autoAlpha: 0, duration: 0.55, ease: "power2.out" }, "+=0.12");
+  };
 
   useEffect(() => {
     const section = sectionRef.current;
     const sticky = stickyRef.current;
-    const arrow = arrowRef.current;
+    const returnWrap = returnWrapRef.current;
     const textEls = textRefs.current;
     const cursorEls = cursorRefs.current;
-    if (!section || !sticky || !arrow || textEls.some((e) => !e) || cursorEls.some((e) => !e)) return;
+    if (!section || !sticky || !returnWrap || textEls.some((e) => !e) || cursorEls.some((e) => !e)) return;
 
     if (isDesignMode()) {
-      gsap.set(sticky, { opacity: 1 });
-      gsap.set(arrow, { opacity: 1 });
+      gsap.set(sticky, { autoAlpha: 1 });
+      gsap.set(returnWrap, { opacity: 1 });
       LINES.forEach((line, i) => {
         textEls[i]!.textContent = line.text;
         cursorEls[i]!.style.display = "none";
@@ -87,8 +125,14 @@ export function MemorialSection() {
       return;
     }
 
-    gsap.set(sticky, { opacity: 0 });
-    gsap.set(arrow, { opacity: 0 });
+    // autoAlpha, not opacity: this layer is fixed and covers the viewport for
+    // the whole page lifetime, and now contains a real interactive control. At
+    // plain opacity 0 that button would still be clickable and focusable — an
+    // invisible "back to the beginning" sitting over the opening page. autoAlpha
+    // adds visibility:hidden at 0, which removes it from hit-testing and the tab
+    // order while it's faded out. Visually identical either way.
+    gsap.set(sticky, { autoAlpha: 0 });
+    gsap.set(returnWrap, { opacity: 0 });
     LINES.forEach((_, i) => {
       textEls[i]!.textContent = "";
       cursorEls[i]!.style.display = "none";
@@ -106,7 +150,7 @@ export function MemorialSection() {
 
     // The layer's own crossfade-in — scroll-scrubbed and reversible, same
     // technique as every other section in this chain.
-    tl.to(sticky, { opacity: 1, ease: "power1.out", duration: 1.3 }, 0);
+    tl.to(sticky, { autoAlpha: 1, ease: "power1.out", duration: 1.3 }, 0);
 
     // The typewriter itself: triggered once by scroll position, then runs
     // on its own clock. `once: true` means it never re-fires, satisfying
@@ -138,7 +182,7 @@ export function MemorialSection() {
         timeoutId = setTimeout(() => typeNext(nextLine, 0), LINE_PAUSE_MS);
       } else {
         showCursorOn(null);
-        gsap.to(arrow, { opacity: 1, ease: "power2.out", duration: 0.8 });
+        gsap.to(returnWrap, { opacity: 1, ease: "power2.out", duration: 0.8 });
       }
     };
 
@@ -224,28 +268,41 @@ export function MemorialSection() {
           </div>
         ))}
 
-        {/* ── Downward arrow (Figma node 863:133) — Figma's own export is a
-            horizontal right-pointing arrow rotated 90deg via CSS; kept the
-            same technique here rather than hand-deriving new coordinates. */}
+        {/* ── "Back to the beginning" — replaces the downward arrow that used
+            to sit here (Figma node 863:133). Centred on the arrow's own
+            centre point, not its top edge, so the control occupies exactly
+            the space the arrow did. pointerEvents has to be re-enabled: the
+            sticky wrapper turns it off for the whole layer. */}
         <div
-          ref={arrowRef}
-          aria-hidden="true"
+          ref={returnWrapRef}
           style={{
-            position: "absolute", left: "50%", top: `${(814 / BOARD_H) * 100}%`,
-            transform: "translateX(-50%)",
-            width: `${(69 / BOARD_W) * 100}%`, height: `${(14.7279 / BOARD_H) * 100}%`,
+            position: "absolute", left: "50%",
+            top: `${((814 + 14.7279 / 2) / BOARD_H) * 100}%`,
+            transform: "translate(-50%, -50%)",
+            pointerEvents: "auto",
           }}
         >
-          <div style={{ width: "100%", height: "100%", transform: "rotate(90deg)" }}>
-            <svg viewBox="0 0 70 14.7279" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M69.7071 8.07107C70.0976 7.68054 70.0976 7.04738 69.7071 6.65685L63.3431 0.292893C62.9526 -0.097631 62.3195 -0.097631 61.9289 0.292893C61.5384 0.683418 61.5384 1.31658 61.9289 1.70711L67.5858 7.36396L61.9289 13.0208C61.5384 13.4113 61.5384 14.0445 61.9289 14.435C62.3195 14.8256 62.9526 14.8256 63.3431 14.435L69.7071 8.07107ZM0 7.36396V8.36396H69V7.36396V6.36396H0V7.36396Z"
-                fill="white"
-              />
-            </svg>
-          </div>
+          <button type="button" className="mo-return-btn" onClick={returnToBeginning}>
+            Back to the Beginning
+          </button>
         </div>
       </div>
+
+      {/* ── Return veil ────────────────────────────────────────────────────
+          A sibling of the sticky layer, not a child: the sticky's opacity is
+          scroll-scrubbed, so a veil inside it would fade out again the
+          instant we jump to the top of the page — exactly when it needs to
+          be covering the screen. Its own fixed layer at a z-index above every
+          scene answers to nothing but the timeline below. */}
+      <div
+        ref={veilRef}
+        aria-hidden="true"
+        style={{
+          position: "fixed", inset: 0, zIndex: 9500,
+          background: "#181818",
+          opacity: 0, visibility: "hidden", pointerEvents: "none",
+        }}
+      />
     </section>
   );
 }

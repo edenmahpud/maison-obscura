@@ -174,10 +174,68 @@ body {
   animation: mo-cursor-blink 1s steps(1) infinite;
 }
 
+/* ── "Back to the beginning" — the closing page's return control ──────────────
+   Replaces the memorial page's downward arrow. Deliberately quiet: a hairline
+   underline rather than a boxed button, so it reads as archival typography
+   that happens to be clickable rather than as UI dropped onto the page. The
+   hover state is the only thing that brightens — a small drift right, a lift
+   in the rule's weight, and a soft glow, all on the same easing.
+
+   Positioning lives on the wrapper (which GSAP fades in), so `transform` here
+   is free for the hover drift without fighting a centering translate.
+   ─────────────────────────────────────────────────────────────────────────── */
+.mo-return-btn {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid rgba(252, 241, 218, 0.26);
+  padding: 0.55em 0.15em 0.5em;
+  font-family: var(--font-cormorant-garamond), "Cormorant Garamond", serif;
+  font-size: clamp(0.85rem, 1.05vw, 1.1rem);
+  font-weight: 400;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #fcf1da;
+  opacity: 0.62;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    opacity 0.5s ease,
+    transform 0.5s ease,
+    border-color 0.5s ease,
+    text-shadow 0.5s ease;
+}
+
+.mo-return-btn:hover {
+  opacity: 1;
+  transform: translateX(4px);
+  border-bottom-color: rgba(252, 241, 218, 0.62);
+  text-shadow: 0 0 14px rgba(252, 241, 218, 0.34);
+}
+
+/* Keyboard focus gets its own unmistakable ring rather than only borrowing the
+   hover treatment — hover's glow is too soft to serve as a focus indicator on
+   its own against this background. :focus-visible keeps it off mouse clicks. */
+.mo-return-btn:focus-visible {
+  opacity: 1;
+  border-bottom-color: rgba(252, 241, 218, 0.62);
+  outline: 1px solid rgba(252, 241, 218, 0.75);
+  outline-offset: 6px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mo-grain::after,
   .mo-flash {
     animation: none;
+  }
+
+  /* Keep the brightness cues, drop the drift. */
+  .mo-return-btn {
+    transition: opacity 0.5s ease, border-color 0.5s ease;
+  }
+
+  .mo-return-btn:hover {
+    transform: none;
   }
 }
 

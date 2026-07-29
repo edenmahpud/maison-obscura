@@ -11,7 +11,7 @@ gsap.registerPlugin(ScrollTrigger);
 const BOARD_W = 1943;
 const BOARD_H = 1080;
 
-const TITLE = "Nikolai got Arrest";
+const TITLE = "Nikolai Was Arrested";
 // Figma applies `capitalize` to the source text via CSS; precomputed here so
 // splitting it into per-letter spans for the typewriter doesn't depend on
 // text-transform behaving correctly across sibling elements.
@@ -24,7 +24,7 @@ function isDesignMode() {
   return new URLSearchParams(window.location.search).get("designMode") === "true";
 }
 
-// ── "Nikolai got Arrest" reveal — crossfades in on top of FBISection's own
+// ── "Nikolai Was Arrested" reveal — crossfades in on top of FBISection's own
 // fade-out, then the background slowly zooms while the two lines of text
 // type themselves in, scroll-controlled, letter by letter.
 //
@@ -32,7 +32,7 @@ function isDesignMode() {
 //
 //   0   –1.2  this whole layer fades in over FBISection fading out beneath
 //   0   –7    background continuously, slowly zooms (scale 1 → 1.15)
-//   1.5 –3.2  "Nikolai got Arrest" types in, letter by letter
+//   1.5 –3.2  "Nikolai Was Arrested" types in, letter by letter
 //   3.4 –5.6  "Last Confirmed Sighting: 1958." types in, letter by letter
 //   5.6 –7.8  hold before anything else moves
 //   7.8 –9.3  this layer blurs and fades out, handing off to the reverse

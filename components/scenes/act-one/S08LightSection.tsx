@@ -26,14 +26,14 @@ gsap.registerPlugin(ScrollTrigger);
 //   (Cormorant Garamond, centered in right viewport).
 //   "same sparkles" → warm glimmer after phrase is complete.
 //   "hide" → blur-fade 600 ms after the word appears.
-//   Typewriter key sound + sparkle chime.
+//   Typewriter key sound. (The glimmers are visual only — the chime that used
+//   to accompany them was a sparkle.mp3 that no longer exists.)
 //
 // CANVAS: 3840 × 1080 px (2 × 1920 reference).
 //
 // REQUIRED AUDIO (public/assets/sounds/sfx/):
 //   paper-place.mp3    vol 0.30
 //   typewriter-key.mp3 vol 0.25
-//   sparkle.mp3        vol 0.35
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CANVAS_W         = 1920;
@@ -155,7 +155,6 @@ export function S08LightSection() {
     const pp = paperPlayed;
 
     const playPaper = () => playSfx("paper");
-    const playSpark = () => playSfx("sparkle");
     const playKey   = () => playSfx("typewriter");
 
     const ctx = gsap.context(() => {
@@ -278,7 +277,6 @@ export function S08LightSection() {
                 if (sameDone && !quoteSameApplied.current) {
                   quoteSameApplied.current = true;
                   quoteSameRef.current?.classList.add("s08q-same-active");
-                  playSpark();
                 } else if (!sameDone && quoteSameApplied.current) {
                   quoteSameApplied.current = false;
                   quoteSameRef.current?.classList.remove("s08q-same-active");
@@ -289,7 +287,6 @@ export function S08LightSection() {
                 if (shineDone && !quoteShineApplied.current) {
                   quoteShineApplied.current = true;
                   quoteShineRef.current?.classList.add("s08q-shine-active");
-                  playSpark();
                 } else if (!shineDone && quoteShineApplied.current) {
                   quoteShineApplied.current = false;
                   quoteShineRef.current?.classList.remove("s08q-shine-active");

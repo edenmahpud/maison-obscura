@@ -1,10 +1,21 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { handCircle } from "./S12InvestigationBoard";
+import { preloadImages } from "@/lib/preloadImages";
+import {
+  WANTED_POSTER,
+  FBI_TITLE_STRIP,
+  FBI_PARTY_SCENE,
+  FBI_MAN_IN_COAT,
+  FBI_STREET_CORNER,
+  FBI_MAN_IN_FEDORA,
+  FBI_NOTES_CARD,
+  WANTED_FBI_PRELOAD,
+  type ImagePair,
+} from "@/lib/wantedFbiAssets";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -13,29 +24,65 @@ const BOARD_W = 1943;
 const BOARD_H = 1025;
 
 interface Piece {
-  src: string;
+  img: ImagePair;
   alt: string;
   x: number; y: number; w: number; h: number;
   radius?: number;
-  missing?: boolean; // true = asset not yet supplied, render a labeled placeholder
 }
 
 // Photos/paper, in Figma's own paint order (later = on top).
 const PIECES: Piece[] = [
   // fbi4 — party scene with the erased/glowing figure.
-  { src: "/assets/fbi/fbi4.png", alt: "Party scene, a figure erased in light", x: 892, y: 77, w: 615, h: 464, radius: 32 },
-  // fbi6 — the same WANTED poster already used in S12InvestigationBoard, and
-  // the same WebP re-encode it loads (identical pixels, ~167 KB vs the PNG's
-  // ~1.29 MB). These render `unoptimized`, so without this the board would ship
-  // the full-size PNG a second time for a 559×540 slot.
-  { src: "/assets/WANTED.webp", alt: "FBI Wanted poster", x: 641, y: 205, w: 559, h: 540 },
+  { img: FBI_PARTY_SCENE, alt: "Party scene, a figure erased in light", x: 892, y: 77, w: 615, h: 464, radius: 32 },
+  // fbi6 — the same WANTED poster S12InvestigationBoard zooms out of, at the
+  // same URL, so the browser serves this from the decode it already has rather
+  // than fetching a second copy for this 559×540 slot.
+  { img: WANTED_POSTER, alt: "FBI Wanted poster", x: 641, y: 205, w: 559, h: 540 },
   // fbi2 — the man in the coat and hat, glancing back.
-  { src: "/assets/sad/sad7.png", alt: "A man in a coat and hat glancing back on the street", x: 127, y: 236, w: 227, h: 543, radius: 9 },
+  { img: FBI_MAN_IN_COAT, alt: "A man in a coat and hat glancing back on the street", x: 127, y: 236, w: 227, h: 543, radius: 9 },
   // fbi5 — the street corner storefronts.
-  { src: "/assets/fbi/fbi5.png", alt: "A street corner of tailoring and camera shopfronts", x: 1094, y: 513, w: 755, h: 426 },
+  { img: FBI_STREET_CORNER, alt: "A street corner of tailoring and camera shopfronts", x: 1094, y: 513, w: 755, h: 426 },
   // fbi3 — the painted man in the fedora at the hedge.
-  { src: "/assets/fbi/fbi3.png", alt: "Illustrated man in a fedora watching from behind a hedge", x: 205, y: 475, w: 687, h: 470 },
+  { img: FBI_MAN_IN_FEDORA, alt: "Illustrated man in a fedora watching from behind a hedge", x: 205, y: 475, w: 687, h: 470 },
 ];
+
+// The whole board fades in at once, so every piece is eager and high-priority —
+// there is no "below the fold" here to defer. next/image's fill + unoptimized
+// path was the wrong tool: it defaults to loading="lazy" (so pieces arrived
+// during the fade rather than before it), and `unoptimized` opted out of the
+// format negotiation next.config.ts enables anyway. A plain <picture> gives the
+// WebP/PNG pair, the loading hints, and nothing else.
+function BoardImage({
+  img, alt, objectFit = "cover", objectPosition, filter,
+}: {
+  img: ImagePair;
+  alt: string;
+  objectFit?: "cover" | "contain";
+  objectPosition?: string;
+  filter?: string;
+}) {
+  return (
+    <picture>
+      <source srcSet={img.webp} type="image/webp" />
+      <img
+        src={img.png}
+        alt={alt}
+        loading="eager"
+        fetchPriority="high"
+        decoding="async"
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit,
+          objectPosition,
+          filter,
+        }}
+      />
+    </picture>
+  );
+}
 
 // Hand-drawn red circles — center/radii measured directly off the Figma
 // vectors' own bounding boxes (already axis-aligned post-rotation), reusing
@@ -86,6 +133,14 @@ export function FBISection() {
   const boardRef = useRef<HTMLDivElement | null>(null);
   const pieceRefs = useRef<(HTMLDivElement | null)[]>([]);
   const circleRefs = useRef<(SVGPathElement | null)[]>([]);
+
+  // Fetch and decode the whole transition's imagery at mount — i.e. at page
+  // load, many sections before the viewer arrives. The <picture> tags below
+  // are eager too, but this also warms the poster S12 needs and lets its
+  // crossfade gate ask "is the FBI board ready yet?" (see WANTED_FBI_CRITICAL).
+  useEffect(() => {
+    void preloadImages(WANTED_FBI_PRELOAD);
+  }, []);
 
   // Scale the board to fit the viewport, same technique as S12's own board.
   useEffect(() => {
@@ -168,6 +223,13 @@ export function FBISection() {
         end: "bottom bottom",
         scrub: 1.2,
         invalidateOnRefresh: true,
+        // will-change only while this layer is actually being animated. It
+        // promotes a full-viewport blurred layer, which is worth a compositor
+        // layer for the ~8 viewport-heights it's moving and pure wasted memory
+        // for the rest of a page this long.
+        onToggle: (self) => {
+          sticky.style.willChange = self.isActive ? "opacity, filter" : "";
+        },
       },
     });
 
@@ -192,6 +254,7 @@ export function FBISection() {
     tl.to(sticky, { opacity: 0, filter: "blur(24px)", ease: "power1.in", duration: 1.5 }, 6.8);
 
     return () => {
+      sticky.style.willChange = "";
       tl.scrollTrigger?.kill();
       tl.kill();
     };
@@ -249,41 +312,13 @@ export function FBISection() {
                 overflow: "hidden",
               }}
             >
-              {p.missing ? (
-                <div
-                  style={{
-                    position: "absolute", inset: 0,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px dashed rgba(154,20,20,0.5)",
-                    color: "rgba(255,235,220,0.55)",
-                    fontFamily: "var(--font-courier-prime, monospace)",
-                    fontSize: 13, textAlign: "center", padding: 12,
-                  }}
-                >
-                  missing asset — public{p.src}
-                </div>
-              ) : (
-                <Image
-                  src={p.src}
-                  alt={p.alt}
-                  fill
-                  unoptimized
-                  style={{ objectFit: "cover", filter: IMG_FILTER }}
-                />
-              )}
+              <BoardImage img={p.img} alt={p.alt} filter={IMG_FILTER} />
             </div>
           ))}
 
           {/* ── Title, on its torn-paper strip ─────────────────────────── */}
           <div style={{ position: "absolute", left: 110, top: 77, width: 589, height: 131 }}>
-            <Image
-              src="/assets/fbi/fbi1.png"
-              alt=""
-              fill
-              unoptimized
-              style={{ objectFit: "cover", objectPosition: "bottom", filter: IMG_FILTER }}
-            />
+            <BoardImage img={FBI_TITLE_STRIP} alt="" objectPosition="bottom" filter={IMG_FILTER} />
           </div>
           <p
             className="font-cormorant"
@@ -306,13 +341,7 @@ export function FBISection() {
               transform: "rotate(14.7deg)", mixBlendMode: "multiply",
             }}
           >
-            <Image
-              src="/assets/happy/happy1.png"
-              alt="A pinned index card"
-              fill
-              unoptimized
-              style={{ objectFit: "cover" }}
-            />
+            <BoardImage img={FBI_NOTES_CARD} alt="A pinned index card" />
           </div>
           <p
             className="font-courier"

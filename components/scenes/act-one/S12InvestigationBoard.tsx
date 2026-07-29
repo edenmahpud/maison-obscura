@@ -5,7 +5,9 @@ import { preload } from "react-dom";
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { playSfx } from "@/lib/audio";
+import { playSfx, stopSfx } from "@/lib/audio";
+import { preloadImages } from "@/lib/preloadImages";
+import { WANTED_FBI_CRITICAL, WANTED_POSTER } from "@/lib/wantedFbiAssets";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -23,8 +25,8 @@ const ARCHIVAL_FACE_Y = 0.205;
 // ~1.29 MB — 7.7× lighter for a poster that gets magnified 6.7× at its
 // tightest, so the encode is deliberately high-quality rather than small. The
 // PNG stays on disk purely as a <picture> fallback.
-const WANTED_SRC        = "/assets/WANTED.webp";
-const WANTED_SRC_PNG    = "/assets/WANTED.png";
+const WANTED_SRC        = WANTED_POSTER.webp;
+const WANTED_SRC_PNG    = WANTED_POSTER.png;
 const WANTED_NATURAL_W  = 983;
 const WANTED_NATURAL_H  = 950;
 const WANTED_FACE_X     = 0.855; // his FBI mugshot, frontal, within the poster
@@ -53,6 +55,22 @@ const ZOOM_WANTED_FIT   = ZOOM_WANTED / POSTER_MAX_FILL;
 // the text at any render size. Values carried over from the retired
 // S12WantedTransition.
 const HOOVER_CIRCLE = { cx: 760, cy: 888, rx: 195, ry: 45, rot: -2 };
+
+// ── red-circle cue window, in board-reveal timeline positions ────────────────
+// Stage 5 below places the first red circle at position 75 with a duration of
+// 6, so its stroke draws over exactly 75→81. That is the entire window in
+// which red-circle-draw.mp3 should be audible — the file itself runs many
+// times longer, which is why it used to bleed across the threads and pins.
+const CIRCLE_SFX_AT    = 75;
+const CIRCLE_SFX_ENDS  = 81;
+// Re-arm point, deliberately far before the start: scrolling back a little
+// from a drawn circle must not reload the cue. 60 sits mid-way through stage
+// 4's evidence stagger, i.e. genuinely back before the circles begin.
+const CIRCLE_SFX_REARM_AT = 60;
+// The draw is scrubbed, so it only advances while the user scrolls. If the
+// playhead goes quiet this long, the stroke has stopped moving and the cue
+// should stop with it.
+const CIRCLE_SFX_IDLE_MS = 140;
 
 // Rect (in px) of an image rendered with object-fit: contain inside `stage`,
 // inset by POSTER_MAX_FILL. Sizing the wrapper to exactly this rect — instead
@@ -125,7 +143,7 @@ export const PIECES: Piece[] = [
 
   // ── RIGHT — ATELIER / PLACE ───────────────────────────────────────────────
   { src: "/assets/place/interior-preview.png",       alt: "Atelier",        cx: 1301, cy: 494, w: 279, rot:  2, z: 10 },
-  { src: "/assets/sad/sad7.png",                     alt: "Evidence",       cx: 1497, cy: 320, w:  55, rot:  2, z:  7 },
+  { src: "/assets/sad/sad7.webp",                    alt: "Evidence",       cx: 1497, cy: 320, w:  55, rot:  2, z:  7 },
   { src: "/assets/place/entry-bg.png",               alt: "Atelier entry",  cx: 1307, cy: 612, w: 226, rot: -3, z: 12 },
   { src: "/assets/all/all27.png",                    alt: "Archive",        cx: 1203, cy: 710, w: 148, rot:  1, z:  7 },
 
@@ -218,6 +236,8 @@ export function S12InvestigationBoard() {
   const boardRef   = useRef<HTMLDivElement | null>(null);
   const revealSoundPlayed = useRef(false);
   const circleSoundPlayed = useRef(false);
+  const circleIdleTimer   = useRef<number | undefined>(undefined);
+  const circleCueCleanup  = useRef<(() => void) | undefined>(undefined);
 
   // Nikolai identification crossfade — single fixed-viewport element that
   // fades in as the board's own star20 piece (Nikolai's face) fades out.
@@ -227,10 +247,20 @@ export function S12InvestigationBoard() {
   const hooverCircleRef   = useRef<SVGPathElement | null>(null);
   const crossfadeFlashRef = useRef<HTMLDivElement | null>(null);
 
-  // Whether the poster has finished loading. A ref, not state: the crossfade
-  // ScrollTrigger reads it every frame and must not be torn down and rebuilt
-  // mid-scroll just because the flag flipped.
-  const posterReadyRef    = useRef(false);
+  // Whether the transition's own imagery is ready. A ref, not state: the
+  // crossfade ScrollTrigger reads it every frame and must not be torn down and
+  // rebuilt mid-scroll just because the flag flipped.
+  //
+  // Two separate gates, because they answer different questions. posterReady
+  // is "can we paint the wanted document" — the <img> below reports it
+  // directly, which is the most honest signal there is for the element that
+  // will actually be shown. transitionReady is "is the whole Wanted → FBI
+  // handoff paintable", i.e. the poster plus the first image of the board this
+  // crossfades into, since starting the zoom-out only to hand off to an empty
+  // board would just move the blank frame later in the sequence.
+  const posterReadyRef     = useRef(false);
+  const transitionReadyRef = useRef(false);
+
   const markPosterReady = () => {
     if (posterReadyRef.current) return;
     posterReadyRef.current = true;
@@ -241,11 +271,33 @@ export function S12InvestigationBoard() {
   };
 
   // Fetch the poster at page load, at high priority, rather than leaving it to
-  // next/image's default lazy loading — the sequence must never open on an
-  // image that is still in flight. `as: "image"` + type lets the browser skip
-  // the hint entirely if it can't decode WebP, in which case the <picture>
-  // fallback below fetches the PNG normally.
+  // default lazy loading — the sequence must never open on an image that is
+  // still in flight. `as: "image"` + type lets the browser skip the hint
+  // entirely if it can't decode WebP, in which case the <picture> fallback
+  // below fetches the PNG normally.
   preload(WANTED_SRC, { as: "image", fetchPriority: "high", type: "image/webp" });
+
+  // Decode-gate the handoff on the poster *and* the FBI board's first image.
+  // preloadImages caches per URL, so this shares FBISection's own preload of
+  // the same set rather than duplicating the fetches.
+  useEffect(() => {
+    let cancelled = false;
+    const open = () => {
+      if (cancelled || transitionReadyRef.current) return;
+      transitionReadyRef.current = true;
+      ScrollTrigger.update();
+    };
+
+    void preloadImages(WANTED_FBI_CRITICAL).then(open);
+
+    // Fail open. preloadImages resolves on error as well as success, so this
+    // should never be what releases the gate — but a gate that can only ever
+    // be opened by an async callback is one unhandled edge away from leaving
+    // the viewer stuck on Nikolai's face with no way forward, and a late
+    // image is a far better failure than a dead sequence.
+    const failOpen = window.setTimeout(open, 8000);
+    return () => { cancelled = true; window.clearTimeout(failOpen); };
+  }, []);
 
   // ── Scale board to fit viewport, never upscale ────────────────────────────
   useEffect(() => {
@@ -342,12 +394,8 @@ export function S12InvestigationBoard() {
             } else if (self.progress <= 0.08 && revealSoundPlayed.current) {
               revealSoundPlayed.current = false;
             }
-            if (self.progress > 0.75 && !circleSoundPlayed.current) {
-              circleSoundPlayed.current = true;
-              playSfx("redCircle");
-            } else if (self.progress <= 0.75 && circleSoundPlayed.current) {
-              circleSoundPlayed.current = false;
-            }
+            // (The red-circle cue is driven off the timeline's own playhead
+            // instead — see the eventCallback below.)
           },
         },
       });
@@ -394,6 +442,69 @@ export function S12InvestigationBoard() {
       // ── Stage 7 (96–100): implicit hold — nothing scheduled here, so the
       // fully assembled board just sits still before the focus-zoom effect
       // (its own ScrollTrigger starting at -200%) takes over.
+
+      // ── Red-circle cue ──────────────────────────────────────────────────
+      // Hung off the timeline's own playhead, not the trigger's progress.
+      // With scrub the playhead lags the scroll, so self.progress would start
+      // the sound before the first stroke visibly moves and cut it before the
+      // stroke lands. tl.time() is the position the viewer is actually
+      // watching, and it's in the same units as the stage positions above —
+      // so the window is literally "while stage 5's first circle is drawing".
+      //
+      // The idle stop is what keeps it honest: a scrubbed draw only advances
+      // while the user scrolls, so if they stop mid-stroke the stroke stops
+      // too, and a cue that kept playing over a frozen line would be exactly
+      // the "which marking is this for?" problem again. Stopping on the
+      // playhead going quiet means the sound is only ever heard over a line
+      // that is actually being drawn.
+      // Polled on a frame loop rather than from a callback. Neither callback
+      // works here: ScrollTrigger renders a scrubbed animation with events
+      // suppressed, so the timeline's own onUpdate never fires at all, and the
+      // trigger's onUpdate only fires while the scroll position is changing —
+      // which misses the case that matters most, where the viewer stops
+      // scrolling just before the circle and the scrub keeps drawing for
+      // another 0.6s with nothing left to notice it. Polling always sees the
+      // real playhead, and costs one comparison per frame.
+      let lastTime = -1;
+      const watchCircleCue = () => {
+        const t = tl.time();
+        if (t === lastTime) return; // playhead parked — nothing to react to
+        lastTime = t;
+
+        if (t >= CIRCLE_SFX_AT && t < CIRCLE_SFX_ENDS) {
+          if (!circleSoundPlayed.current) {
+            circleSoundPlayed.current = true;
+            playSfx("redCircle");
+          }
+          // The draw is scrubbed, so it only advances while the playhead moves.
+          // Re-arming this on every move means the cue stops shortly after the
+          // stroke does — a sound over a frozen line is exactly the "which
+          // marking is this?" confusion we're fixing.
+          window.clearTimeout(circleIdleTimer.current);
+          circleIdleTimer.current = window.setTimeout(
+            () => stopSfx("redCircle"),
+            CIRCLE_SFX_IDLE_MS,
+          );
+          return;
+        }
+
+        // Outside the first circle's draw the cue is always wrong: past the
+        // end the stroke has landed, before the start it hasn't begun.
+        if (circleSoundPlayed.current) {
+          window.clearTimeout(circleIdleTimer.current);
+          stopSfx("redCircle");
+        }
+        // Re-arm only well before the circles start, so jitter around the
+        // threshold — or a slow drag back and forth across it — can't
+        // retrigger it. Hearing the cue again means genuinely leaving the
+        // circle stage and scrolling back into it.
+        if (t < CIRCLE_SFX_REARM_AT) circleSoundPlayed.current = false;
+      };
+      let cueFrame = requestAnimationFrame(function loop() {
+        watchCircleCue();
+        cueFrame = requestAnimationFrame(loop);
+      });
+      circleCueCleanup.current = () => cancelAnimationFrame(cueFrame);
     }, section);
 
     // This section sits deep in a very long page with many components above
@@ -409,6 +520,13 @@ export function S12InvestigationBoard() {
     return () => {
       window.removeEventListener("load", refresh);
       window.clearTimeout(fallback);
+      // Don't leave the cue playing, a stop pending, or a ticker callback
+      // running past this component's life.
+      circleCueCleanup.current?.();
+      circleCueCleanup.current = undefined;
+      window.clearTimeout(circleIdleTimer.current);
+      stopSfx("redCircle", 0);
+      circleSoundPlayed.current = false;
       ctx.revert();
     };
   }, []);
@@ -572,6 +690,12 @@ export function S12InvestigationBoard() {
       end:             "top -750%",
       scrub:           2,
       invalidateOnRefresh: true,
+      // Promote the zoom layers only while this sequence is actually running.
+      onToggle: (self) => {
+        const on = self.isActive;
+        wantedInner.style.willChange = on ? "transform, filter" : "";
+        focusEl.style.willChange     = on ? "transform, filter, opacity" : "";
+      },
       onUpdate: (self) => {
         if (!self.isActive) return;
         const p = self.progress;
@@ -587,14 +711,16 @@ export function S12InvestigationBoard() {
         // C: crossfade progress from Nikolai's face to his FBI portrait.
         // Also never falls back on its own — same reasoning as F.
         //
-        // Gated on the poster having actually decoded: until then C stays 0,
-        // which holds the previous visual state (Nikolai's face, fully opaque)
-        // rather than crossfading into a blank or half-painted document. The
-        // poster is preloaded at page load and this section is ~50 sections
-        // in, so in practice the gate never fires — it exists so a cold, slow
-        // connection degrades into a longer hold on Nikolai instead of an
-        // empty frame.
-        const C = posterReadyRef.current ? ease(lerp01(p, P_ZOOM, P_CROSSFADE)) : 0;
+        // Gated on the transition's imagery having actually decoded: until
+        // then C stays 0, which holds the previous visual state (Nikolai's
+        // face, fully opaque) rather than crossfading into a blank or
+        // half-painted document. Everything is preloaded at page load and this
+        // section is ~50 sections in, so in practice the gate never fires — it
+        // exists so a cold, slow connection degrades into a longer hold on
+        // Nikolai instead of an empty frame.
+        const C = posterReadyRef.current && transitionReadyRef.current
+          ? ease(lerp01(p, P_ZOOM, P_CROSSFADE))
+          : 0;
 
         // Combined "FBI portrait showing" amount — 0 early, 1 from the
         // crossfade onward (no automatic return to 0).
@@ -660,7 +786,12 @@ export function S12InvestigationBoard() {
       },
     });
 
-    return () => { st.kill(); fitObserver.disconnect(); };
+    return () => {
+      wantedInner.style.willChange = "";
+      focusEl.style.willChange = "";
+      st.kill();
+      fitObserver.disconnect();
+    };
   }, []);
 
   // ── Poster preload / decode gate ──────────────────────────────────────────
@@ -891,7 +1022,11 @@ export function S12InvestigationBoard() {
           background: "#0d0b09",
         }}
       >
-        <div ref={wantedInnerRef} style={{ position: "absolute", willChange: "transform, filter" }}>
+        {/* will-change is applied by the focus effect only while that trigger
+            is active, not declared here — it promotes a layer holding a poster
+            magnified up to 7.4×, which is a lot of texture memory to hold for
+            the entire life of a page this long. */}
+        <div ref={wantedInnerRef} style={{ position: "absolute" }}>
           {/* A plain <picture>, not next/image: this needs a real WebP-with-
               PNG-fallback pair, eager high-priority loading, and an onLoad the
               crossfade gate can read — none of which next/image's `fill` +

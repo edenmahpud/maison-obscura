@@ -817,8 +817,11 @@ export function S06SadSection() {
                 overflow: "hidden",
                 borderRadius: "9px",
               }}>
+                {/* .webp, matching the copies the FBI and S12 boards load —
+                    same pixels, and it keeps this one image from being fetched
+                    twice in two formats across the page. */}
                 <Image
-                  src="/assets/sad/sad7.png"
+                  src="/assets/sad/sad7.webp"
                   alt="" aria-hidden="true"
                   fill
                   sizes="146px"

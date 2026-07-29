@@ -40,9 +40,7 @@ function isDesignMode() {
 const CIRCLE_PATH_1 =
   "M 50 6 C 74 2 97 22 96 50 C 95 78 75 98 50 96 C 25 94 2 75 4 50 " +
   "C 6 25 24 10 50 6 Z";
-const CIRCLE_PATH_2 =
-  "M 52 8 C 77 4 96 26 94 52 C 92 78 72 96 48 93 C 24 90 4 70 6 47 " +
-  "C 8 24 26 12 52 8 Z";
+// (CIRCLE_PATH_2 removed with the marking that sat over the woman in star5.)
 const CIRCLE_PATH_3 =
   "M 48 5 C 73 2 97 24 96 50 C 95 76 73 97 49 95 C 25 93 3 72 5 48 " +
   "C 7 24 22 8 48 5 Z";
@@ -84,9 +82,10 @@ export function S09StarSection() {
   const hideApplied   = useRef(false);
   const hideTimeout   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Red circle refs
+  // Red circle refs. (There is no oval2 — the marking that sat over the woman
+  // in star5 was removed; the numbering of the remaining two is left alone so
+  // they still match their Figma vector names.)
   const oval1Ref = useRef<SVGPathElement | null>(null);
-  const oval2Ref = useRef<SVGPathElement | null>(null);
   const oval3Ref = useRef<SVGPathElement | null>(null);
 
   // Red investigation thread — connects the three circles top to bottom
@@ -148,7 +147,7 @@ export function S09StarSection() {
   // ── Red investigation circles: scroll-driven stroke draw ──────────────────
   useEffect(() => {
     const section = sectionRef.current;
-    const ovals = [oval1Ref.current, oval2Ref.current, oval3Ref.current];
+    const ovals = [oval1Ref.current, oval3Ref.current];
     if (!section || ovals.some(o => !o)) return;
 
     ovals.forEach(oval => {
@@ -468,30 +467,11 @@ export function S09StarSection() {
           </div>
         </div>
 
-        {/* ── Red circle 2 · Vector13 · near image564 ──────────────────────── */}
-        {/* Figma: left=2850.46 top=1081.31 w=150.712 h=147.691 → browser: left=vw(1081.31) top=877px */}
-        <div
-          data-circle-trigger
-          data-design-star-key="circle-1"
-          style={{ position: "absolute", left: vw(1081.31), top: "877px", width: vw(150.712), aspectRatio: "150.712 / 147.691", zIndex: 6, pointerEvents: "none" }}
-        >
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
-            <path
-              ref={oval2Ref}
-              d={CIRCLE_PATH_2}
-              fill="none"
-              stroke={RED_INK_COLOR}
-              strokeWidth={RED_INK_STROKE_WIDTH}
-              vectorEffect="non-scaling-stroke"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              pathLength="1"
-              strokeDasharray="1"
-              strokeDashoffset="1"
-              style={{ visibility: "hidden" }}
-            />
-          </svg>
-        </div>
+        {/* The second red marking used to sit here — a curved stroke that fell
+            inside star5's bounds, over the woman in that portrait. Removed on
+            request; star5 itself, the other two circles, and the red thread
+            are untouched. Its old Figma reference, in case it's ever wanted
+            back: Vector13, left=2850.46 top=1081.31 w=150.712 h=147.691. */}
 
         {/* ── star12 — small angled photo · parallax 8 ─────────────────────── */}
         {/* Figma 818:1224  left=1223.82 top=779.33 w=354.199 h=394.751  rot=105.01°→15.01° */}

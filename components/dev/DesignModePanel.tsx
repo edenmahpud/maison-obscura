@@ -92,7 +92,6 @@ const STAR_ELEMENTS: StarElemDef[] = [
   { key: "img-17", label: "star1.png — banner (founders strip)", kind: "image" },
   { key: "img-18", label: "star20.png — founders outside tailor shop", kind: "image" },
   { key: "circle-0", label: "Red circle 1 — near star4 / medal",    kind: "circle" },
-  { key: "circle-1", label: "Red circle 2 — near image564",         kind: "circle" },
   { key: "circle-2", label: "Red circle 3 — near star13 / newspaper", kind: "circle" },
   { key: "thread-0", label: "Investigation thread (full board spine)", kind: "thread" },
   { key: "line-0", label: "Red line 1 — horizontal (enters left of title)", kind: "line" },
